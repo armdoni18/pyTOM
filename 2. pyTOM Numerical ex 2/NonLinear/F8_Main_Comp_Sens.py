@@ -25,7 +25,7 @@ def F8_Main_Comp_Sens(fem, opt, J):
     penal = float(opt["penal"])
 
     # -------------------------------------------------------
-    # STEP 1: dF/dA from MST  — vectorized
+    # STEP 1: dF/dA from MST
     # -------------------------------------------------------
     dfdA = np.zeros(ndof, dtype=float)
 
@@ -116,7 +116,7 @@ def F8_Main_Comp_Sens(fem, opt, J):
     lam[freedof] = spsolve(J_ff, dfdA[freedof])
 
     # -------------------------------------------------------
-    # STEP 3: df/drho_e — vectorized, RELUCTIVITY domain only
+    # STEP 3: df/drho_e, RELUCTIVITY domain only
     # -------------------------------------------------------
     dfdrho_e = np.zeros(ne, dtype=float)
 
@@ -132,7 +132,7 @@ def F8_Main_Comp_Sens(fem, opt, J):
         air_elems = np.where(IX[:, 3] == 1)[0]
         nu_air = nu_e[int(air_elems[0])] if air_elems.size > 0 else 1.0 / (4.0 * np.pi * 1e-7)
 
-        # nu_iron(B) from nonlinear model (vectorized)
+        # nu_iron(B) from nonlinear model
         mu_iron_dd = F0_Main_Mat_Nonlinear(Bmag_dd)   # (ndd,)
         nu_iron_dd = 1.0 / mu_iron_dd                  # reluctivity of iron at converged B
 
@@ -151,7 +151,7 @@ def F8_Main_Comp_Sens(fem, opt, J):
         Ae_vec  = A[nodes_dd]    # (ndd, 3)
         lam_vec = lam[nodes_dd]  # (ndd, 3)
 
-        # dfdrho_e(e) = lambda^T (dnu_drho * K0) A  (vectorized)
+        # dfdrho_e(e) = lambda^T (dnu_drho * K0) A
         K0A = np.einsum('eij,ej->ei', K0_dd, Ae_vec)   # (ndd, 3)
         dfdrho_e[dd_idx] = dnu_drho_dd * np.sum(lam_vec * K0A, axis=1)
 

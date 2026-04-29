@@ -17,7 +17,7 @@ def F4_Main_Solve_VecPot(fem, inputs, nu_e_all):
     # Store nu into fem
     fem["nu_e"] = nu_e_all.copy()
 
-    # Build element-wise stiffness: nu_e * K0_e  (vectorized)
+    # Build element-wise stiffness: nu_e * K0_e
     Velist = np.repeat(nu_e_all, 9) * fem["S_S"]
 
     # Assemble global stiffness matrix S

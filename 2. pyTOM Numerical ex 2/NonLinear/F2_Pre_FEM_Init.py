@@ -23,7 +23,7 @@ def F2_Pre_FEM_Init(inputs, mesh):
     X   = fem["X"]
     ne  = fem["ne"]
 
-    # 0-based node indices for vectorized indexing
+    # 0-based node indices
     n0 = IX[:, 0] - 1   # (ne,)
     n1 = IX[:, 1] - 1
     n2 = IX[:, 2] - 1
@@ -101,7 +101,7 @@ def F2_Pre_FEM_Init(inputs, mesh):
         fem[key]  = nodes_c
         mesh[key] = nodes_c
 
-        # Vectorized area computation
+        # area computation
         na = nodes_c[:, 0] - 1
         nb = nodes_c[:, 1] - 1
         nc_ = nodes_c[:, 2] - 1

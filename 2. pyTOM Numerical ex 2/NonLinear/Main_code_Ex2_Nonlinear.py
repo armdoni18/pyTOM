@@ -1,17 +1,17 @@
 import numpy as np
 import scipy.sparse as sp
-from scipy.sparse.linalg import spsolve
-from mma import mmasub
+from scipy.sparse.linalg    import spsolve
+from mma                    import mmasub
 import time
-from F1_Pre_Mesh_Import   import F1_Pre_Mesh_Import
-from F2_Pre_FEM_Init      import F2_Pre_FEM_Init
-from F3_Pre_Opt_Init      import F3_Pre_Opt_Init
-from F4_Main_Solve_VecPot import F4_Main_Solve_VecPot
-from F5_Main_Comp_Flux    import F5_Main_Comp_Flux
-from F6_Main_NR_Jacobian  import F6_Main_NR_Jacobian
-from F7_Main_Comp_Force   import F7_Main_Comp_Force
-from F8_Main_Comp_Sens    import F8_Main_Comp_Sens
-from F9_Post_Process_Plot import F9_Post_Process_Plot
+from F1_Pre_Mesh_Import     import F1_Pre_Mesh_Import
+from F2_Pre_FEM_Init        import F2_Pre_FEM_Init
+from F3_Pre_Opt_Init        import F3_Pre_Opt_Init
+from F4_Main_Solve_VecPot   import F4_Main_Solve_VecPot
+from F5_Main_Comp_Flux      import F5_Main_Comp_Flux
+from F6_Main_NR_Jacobian    import F6_Main_NR_Jacobian
+from F7_Main_Comp_Force     import F7_Main_Comp_Force
+from F8_Main_Comp_Sens      import F8_Main_Comp_Sens
+from F9_Post_Process_Plot   import F9_Post_Process_Plot
 from F0_Main_Mat_Nonlinear  import F0_Main_Mat_Nonlinear
 from F0_Main_Mat_Derivative import F0_Main_Mat_Derivative
 
@@ -53,7 +53,7 @@ inputs["PM"] = {
     "theta":  [0.0]
 }
 
-# === Reluctivity inputs (nu = 1/mu) — consistent with manuscript ===
+# === Reluctivity inputs (nu = 1/mu) ===
 mu0      = inputs["mu0"]
 inputs["nu_air"]   = 1.0 / (mu0 * inputs["mur_air"])
 inputs["nu_coil1"] = 1.0 / (mu0 * inputs["mur_coil1"])
@@ -80,7 +80,7 @@ print("Elapsed time for Pre-Processing: %s" %
 force_profile_final = None
 saved_iter          = -1
 
-# Pre-build domain masks (vectorized, outside loop for speed)
+# Pre-build domain masks
 ne = fem["ne"]
 IX_base = fem["IX"]
 
@@ -113,7 +113,7 @@ while (opt["bt"] < inputs["bt_fn"]) and (opt["iter"] <= inputs["iterMax"]):
         fem["IX"][:, 3] = IX_all[j][:, 3]
         IX = fem["IX"]
 
-        # ── VECTORIZED nu_e_all initial guess ────────────────────────────────
+        # ─ nu_e_all initial guess ────────────────────────────────
         dom = IX[:, 3].astype(int)
         erho_vec = np.asarray(opt["erho"], dtype=float).reshape(-1)
         penal    = inputs["penal"]
@@ -166,7 +166,7 @@ while (opt["bt"] < inputs["bt_fn"]) and (opt["iter"] <= inputs["iterMax"]):
             fem = F5_Main_Comp_Flux(fem)
             B   = fem["B"]
 
-            # STEP 3: Update nu_e_all(B) — FULLY VECTORIZED ──────────────────
+            # STEP 3: Update nu_e_all(B) ──────────────────
             dom_cur  = IX[:, 3].astype(int)
             dnu_dB_e = np.zeros(ne, dtype=float)
 
