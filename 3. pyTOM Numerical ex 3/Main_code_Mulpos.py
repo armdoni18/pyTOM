@@ -78,7 +78,7 @@ print("Elapsed time for Pre-Processing: %s" %
 force_profile_final = None
 saved_iter          = -1
 
-# Pre-build domain masks (vectorized, outside loop for speed)
+# Pre-build domain masks (outside loop for speed)
 ne = fem["ne"]
 IX_base = fem["IX"]
 
@@ -111,7 +111,7 @@ while (opt["bt"] < inputs["bt_fn"]) and (opt["iter"] <= inputs["iterMax"]):
         fem["IX"][:, 3] = IX_all[j][:, 3]
         IX = fem["IX"]
 
-        # ── VECTORIZED nu_e_all initial guess ────────────────────────────────
+        # ── nu_e_all initial guess ────────────────────────────────
         dom = IX[:, 3].astype(int)
         erho_vec = np.asarray(opt["erho"], dtype=float).reshape(-1)
         penal    = inputs["penal"]
@@ -164,7 +164,7 @@ while (opt["bt"] < inputs["bt_fn"]) and (opt["iter"] <= inputs["iterMax"]):
             fem = F5_Main_Comp_Flux(fem)
             B   = fem["B"]
 
-            # STEP 3: Update nu_e_all(B) — FULLY VECTORIZED ──────────────────
+            # STEP 3: Update nu_e_all(B) —──────────────────
             dom_cur  = IX[:, 3].astype(int)
             dnu_dB_e = np.zeros(ne, dtype=float)
 

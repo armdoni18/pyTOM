@@ -67,7 +67,7 @@ def F3_Pre_Opt_Init(inputs, fem):
     opt["MMA"] = MMA
 
     # -------------------------------------------------------
-    # Helmholtz filter: vectorized assembly
+    # Helmholtz filter
     # -------------------------------------------------------
     n0 = IX[:, 0] - 1   # (ne,)
     n1 = IX[:, 1] - 1

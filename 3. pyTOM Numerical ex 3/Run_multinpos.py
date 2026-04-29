@@ -64,7 +64,6 @@ INPUTS_BASE = {
     }
 }
 
-# ── Warna & style per Npos untuk plot perbandingan ───────────────
 STYLE_MAP = {
     1 : {"color": "#378ADD", "linestyle": "-",    "marker": "o", "label": r"$N_{pos}=1$"},
     3 : {"color": "#1D9E75", "linestyle": "--",   "marker": "s", "label": r"$N_{pos}=3$"},
@@ -72,7 +71,7 @@ STYLE_MAP = {
     7 : {"color": "#7F77DD", "linestyle": ":",    "marker": "D", "label": r"$N_{pos}=7$"},
     11: {"color": "#BA7517", "linestyle": (0,(5,2,1,2)), "marker": "v", "label": r"$N_{pos}=11$"},
 }
-# fallback palette untuk Npos di luar STYLE_MAP
+
 _FALLBACK_COLORS = ["#E24B4A", "#5DCAA5", "#D4537E", "#639922", "#EF9F27"]
 
 
@@ -92,7 +91,7 @@ def run_single_npos(Npos, inputs_base, modelname, out_dir):
     print(f"  Output    : {out_dir}")
     print("="*60)
 
-    # ── Salin inputs (tiap run independen) ──────────────────────
+    # ── copy inputs (each run independently) ──────────────────────
     inputs = copy.deepcopy(inputs_base)
     mu0    = inputs["mu0"]
     inputs["nu_air"]   = 1.0 / (mu0 * inputs["mur_air"])
@@ -113,13 +112,13 @@ def run_single_npos(Npos, inputs_base, modelname, out_dir):
     print(f"Pre-Processing Npos={Npos} selesai ✅  "
           f"({time.strftime('%H:%M:%S', time.gmtime(time.time()-run_start))})")
 
-    # ── Setup variabel tracking ──────────────────────────────────
+    # ── Setup variable tracking ──────────────────────────────────
     ne            = fem["ne"]
     pm_domIDs     = set(inputs["PM"]["domIDs"])
     force_profile_final = None
     saved_iter    = -1
 
-    # Posisi yang di-plot field (pilih 3 posisi merata)
+    # Plotted position
     if Npos == 1:
         plot_positions = [0]
     elif Npos <= 3:
@@ -170,7 +169,7 @@ def run_single_npos(Npos, inputs_base, modelname, out_dir):
             for pmid in pm_domIDs:
                 nu_e_all[dom == pmid] = inputs["nu_PM"]
 
-            # Linear solve awal
+            # Linear solve initially
             fem   = F4_Main_Solve_VecPot(fem, inputs, nu_e_all)
             A_old = fem["A"].copy()
             T_rhs = fem["T"].copy()
@@ -246,7 +245,7 @@ def run_single_npos(Npos, inputs_base, modelname, out_dir):
             fem["A"] = A_old
             fem      = F5_Main_Comp_Flux(fem)
 
-            # Simpan field untuk posisi terpilih
+            # Saved field for the dedicated position
             if j in plot_positions:
                 fields_pos[j + 1] = {
                     "A" : fem["A"].copy(),
@@ -269,14 +268,14 @@ def run_single_npos(Npos, inputs_base, modelname, out_dir):
             dfdx_pos.append(np.asarray(dfdx).reshape(-1, 1))
             dgdx_pos.append(np.asarray(dgdx).reshape(1, -1))
 
-        # Simpan force profile di iterasi konvergen / terakhir
+        # Saved force profile in the last iteration
         converged = (opt["deltaf"] < inputs["conv"])
         last_iter = (opt["iter"] == inputs["iterMax"])
         if (converged or last_iter) and (opt["iter"] > saved_iter):
             force_profile_final = f_pos.copy()
             saved_iter = opt["iter"]
 
-        # Rata-rata lintas posisi
+        # average along the position
         f_avg    = float(np.mean(f_pos))
         g_avg    = float(np.mean(g_pos))
         dfdx_avg = np.mean(np.hstack(dfdx_pos), axis=1, keepdims=True)
@@ -306,7 +305,7 @@ def run_single_npos(Npos, inputs_base, modelname, out_dir):
             opt["g"][-1] + inputs["volfrac"],
             opt["deltaf"], opt["bt"], Npos))
 
-        # Plot iterasi (simpan ke fig_dir)
+        # Plotting (save to fig_dir)
         F9_Post_Process_Plot(fem, opt, fields_pos,
                              mst_pos=mst_pos, out_dir=fig_dir)
 
@@ -340,13 +339,12 @@ def run_single_npos(Npos, inputs_base, modelname, out_dir):
     print(f"\nRun Npos={Npos} selesai ✅  "
           f"({time.strftime('%H:%M:%S', time.gmtime(time.time()-run_start))})")
 
-    # Fallback: kalau force_profile_final belum pernah di-set
     if force_profile_final is None:
         force_profile_final = f_pos.copy()
 
     scale_factor = opt.get("scale_factor", 1.0)
 
-    # ── Simpan force profile individu ───────────────────────────
+    # ── Save force profile individually ───────────────────────────
     forces_scaled = np.array(force_profile_final) * scale_factor
     positions_mm  = np.arange(len(forces_scaled))   # index posisi (0,1,2,...)
 
@@ -368,7 +366,7 @@ def run_single_npos(Npos, inputs_base, modelname, out_dir):
     }
 
 # ================================================================
-# PLOT PERBANDINGAN — semua Npos dalam 1 grafik
+# PLOT COMPARISON — all Npos in 1 graphic
 # ================================================================
 
 def plot_comparison(all_results, out_dir):
@@ -447,7 +445,7 @@ if __name__ == "__main__":
         )
         all_results.append(result)
 
-    # Plot perbandingan semua run
+    # Plot Comparison for all run
     plot_comparison(all_results, out_dir=RESULTS_DIR)
 
     total_elapsed = time.time() - total_start
