@@ -120,7 +120,7 @@ while (opt["bt"] < inputs["bt_fn"]) and (opt["iter"] <= inputs["iterMax"]):
         erho_vec = np.asarray(opt["erho"], dtype=float).reshape(-1)
         penal    = inputs["penal"]
 
-        # ---- Initial linear nu_e_all (vectorized over all 8 domains) ----
+        # ---- Initial linear nu_e_all ----
         nu_e_all = np.full(ne, inputs["nu_air"])
 
         dd_mask = (dom == 2)
