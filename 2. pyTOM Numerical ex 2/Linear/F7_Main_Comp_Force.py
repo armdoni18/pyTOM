@@ -81,7 +81,7 @@ def F7_Main_Comp_Force(fem):
     centroids  = np.mean(X[nodes012, :], axis=1)  # (ne, 2)  vectorized
 
     # ============================================================
-    # STEP 5: Force integration — vectorized over edges
+    # STEP 5: Force integration
     # ============================================================
     Nedge = air_clean.shape[0]
 
@@ -113,7 +113,7 @@ def F7_Main_Comp_Force(fem):
     eps_shift   = 1e-3
     shifted_mid = mid + eps_shift * normal   # (Nedge, 2)
 
-    # Vectorized nearest element: find argmin distance from shifted_mid to centroids
+    # find argmin distance from shifted_mid to centroids
     from scipy.spatial.distance import cdist
     dist_mat   = cdist(shifted_mid, centroids)   # (Nedge, ne)
     closest_e  = np.argmin(dist_mat, axis=1)     # (Nedge,)

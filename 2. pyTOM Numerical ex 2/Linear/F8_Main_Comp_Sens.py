@@ -23,7 +23,7 @@ def F8_Main_Comp_Sens(fem, opt, inputs):
     penal = float(opt["penal"])
 
     # -------------------------------------------------------
-    # STEP 1: dF/dA from MST  — vectorized
+    # STEP 1: dF/dA from MST
     # -------------------------------------------------------
     dfdA = np.zeros(ndof, dtype=float)
 
@@ -57,7 +57,7 @@ def F8_Main_Comp_Sens(fem, opt, inputs):
     eps_shift   = 1e-3
     shifted_mid = mid + eps_shift * normal
 
-    # Nearest element per edge (vectorized)
+    # Nearest element per edge
     nodes012  = IX[:, 0:3] - 1
     centroids = np.mean(X[nodes012, :], axis=1)   # (ne, 2)
 
@@ -116,7 +116,7 @@ def F8_Main_Comp_Sens(fem, opt, inputs):
     lam[freedof] = spsolve(S_ff, dfdA[freedof])
 
     # -------------------------------------------------------
-    # STEP 3: df/drho_e — vectorized, LINEAR SIMP on design domain
+    # STEP 3: df/drho_e, LINEAR SIMP on design domain
     # -------------------------------------------------------
     dfdrho_e = np.zeros(ne, dtype=float)
 
