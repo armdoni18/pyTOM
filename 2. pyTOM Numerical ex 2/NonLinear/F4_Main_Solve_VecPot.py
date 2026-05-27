@@ -1,3 +1,14 @@
+"""
+F4_Main_Solve_VecPot.py — Numerical Example 2 (nonlinear actuator)
+==================================================================
+
+Magnetostatic linear solver for the nonlinear-material actuator of Section 5.2.
+
+Same algorithmic role as the Example 3 version (``3. pyTOM Numerical ex 3/F4_Main_Solve_VecPot.py``), where the full module documentation is provided.
+
+This solve produces the initial linear vector potential which is then refined by the Newton-Raphson iteration in the main driver.
+"""
+
 import numpy as np
 import scipy.sparse as sp
 from scipy.sparse.linalg import spsolve

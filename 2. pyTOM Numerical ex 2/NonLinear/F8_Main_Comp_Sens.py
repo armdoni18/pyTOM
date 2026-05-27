@@ -1,3 +1,12 @@
+"""
+F8_Main_Comp_Sens.py — Numerical Example 2 (nonlinear actuator)
+==================================================================
+
+Adjoint sensitivity analysis for the nonlinear-material actuator of Section 5.2.
+
+Same algorithmic role as the Example 3 version (``3. pyTOM Numerical ex 3/F8_Main_Comp_Sens.py``), where the full module documentation is provided.
+"""
+
 import numpy as np
 from scipy.sparse.linalg import spsolve
 from scipy.spatial.distance import cdist

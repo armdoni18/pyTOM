@@ -1,3 +1,14 @@
+"""
+F7_Main_Comp_Force.py — Numerical Example 2 (nonlinear actuator)
+==================================================================
+
+Maxwell-stress-tensor force evaluation for the nonlinear-material actuator of Section 5.2.
+
+Same algorithmic role as the Example 3 version (``3. pyTOM Numerical ex 3/F7_Main_Comp_Force.py``), where the full module documentation is provided.
+The closed air-side integration loop ensures that the reluctivity used in the MST is nu_air (linear);
+evaluating in the iron domain would give an incorrect force due to the saturation gradient.
+"""
+
 import numpy as np
 
 def F7_Main_Comp_Force(fem):

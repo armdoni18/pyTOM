@@ -1,3 +1,15 @@
+"""
+F9_Post_Process_Plot.py — Numerical Example 2 (nonlinear actuator)
+==================================================================
+
+Post-processing and visualization for the nonlinear-material actuator of Section 5.2.
+Renders the optimized topology, the magnetic field, and the convergence histories (Fig. 5(a-b)).
+
+The general role of this module is documented in detail in the Example 3 version (``3. pyTOM Numerical ex 3/F9_Post_Process_Plot.py``).
+
+Module is infrastructure: no equation reference.
+"""
+
 import os
 import numpy as np
 

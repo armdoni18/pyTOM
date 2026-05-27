@@ -1,3 +1,12 @@
+"""
+F3_Pre_Opt_Init.py — Numerical Example 2 (nonlinear actuator)
+==================================================================
+
+Optimization-side pre-processing for the nonlinear-material actuator of Section 5.2.
+
+Same algorithmic role as the Example 3 version (``3. pyTOM Numerical ex 3/F3_Pre_Opt_Init.py``), where the full module documentation is provided.
+"""
+
 import numpy as np
 from scipy.sparse.linalg import splu
 import scipy.sparse as sp

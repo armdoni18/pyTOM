@@ -1,5 +1,16 @@
-import numpy as np
+"""
+F1_Pre_Mesh_Import.py — Numerical Example 2 (nonlinear actuator)
+==================================================================
 
+Gmsh mesh parser specialized for the magnetic actuator of Section 5.2 with the nonlinear (Brauer) material model (Fig. 4).
+
+Same physical-group conventions and same algorithmic role as the Example 3 version (``3. pyTOM Numerical ex 3/F1_Pre_Mesh_Import.py``).
+The nonlinear example evaluates the design at a single plunger position (Npos = 1) but invokes the Newton-Raphson iteration for the magnetic field.
+
+Module is infrastructure: no equation reference.
+"""
+
+import numpy as np
 
 def F1_Pre_Mesh_Import(modelname: str, Npos: int = 1):
 

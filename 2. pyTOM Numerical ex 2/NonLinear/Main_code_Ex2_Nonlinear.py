@@ -1,3 +1,21 @@
+"""
+Main_code_Ex2_Nonlinear.py
+==========================
+
+Top-level driver script for Numerical Example 2 (nonlinear case):
+topology optimization of the magnetic actuator with the BRAUER saturation model for the iron domain,
+at a fixed plunger position (Section 5.2 of the manuscript, Fig. 5(a-b)).
+
+The driver performs the same outer topology-optimization loop and the same Newton-Raphson inner solve as ``Main_code_Mulpos.py`` (Example 3) but with the multi-position
+loop removed (Npos = 1).
+
+For each TO iteration the design is updated through filtering (Eq. (18)), projection (Eq. (19)), and SIMP with the field-dependent nu_iron(|B|) of Eq. (20).
+The magnetic field is obtained by Newton-Raphson iteration on Eqs. (4)-(6), using the consistent tangent matrix from ``F6_Main_NR_Jacobian`` and
+the damped update of Eq. (6) with alpha = 0.2.
+
+See ``3. pyTOM Numerical ex 3/Main_code_Mulpos.py`` for the full per-step documentation of the generic TO loop and the rationale for the numerical choices.
+"""
+
 import numpy as np
 import scipy.sparse as sp
 from scipy.sparse.linalg    import spsolve
