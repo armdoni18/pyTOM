@@ -1,3 +1,18 @@
+"""
+F2_Pre_FEM_Init.py — Numerical Example 1 (IPM motor benchmark)
+==================================================================
+
+Finite-element pre-processing for the IPM motor of Section 5.1.
+
+Same algorithmic role as the Example 3 version(``3. pyTOM Numerical ex 3/F2_Pre_FEM_Init.py``), where the full module documentation is provided.
+The example-3 docstring covers:
+  - The element kernel K0_e of Eq. (21) without the reluctivity;
+  - The COO triplet storage layout reused by F4 and F6;
+  - The Dirichlet boundary detection and the coil source assembly.
+
+Example-1 specifics: the IPM mesh uses different physical groups than the actuator, and the Dirichlet bounding box is set to the outer boundary of the one-quarter motor model.
+"""
+
 import numpy as np
 
 def F2_Pre_FEM_Init(inputs, mesh):

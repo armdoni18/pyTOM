@@ -1,5 +1,14 @@
-import numpy as np
+"""
+F5_Main_Comp_Flux.py — Numerical Example 1 (IPM motor benchmark)
+==================================================================
 
+Element-wise computation of B = curl A for the IPM motor of Section 5.1.
+
+Same algorithmic role as the Example 3 version (``3. pyTOM Numerical ex 3/F5_Main_Comp_Flux.py``), where the full module documentation is provided.
+Used inside the Newton-Raphson iteration to evaluate the field-dependent reluctivity, and after convergence for visualization.
+"""
+
+import numpy as np
 
 def F5_Main_Comp_Flux(fem):
 

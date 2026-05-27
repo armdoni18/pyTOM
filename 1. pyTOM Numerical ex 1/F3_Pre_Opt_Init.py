@@ -1,3 +1,16 @@
+"""
+F3_Pre_Opt_Init.py — Numerical Example 1 (IPM motor benchmark)
+==================================================================
+
+Optimization-side pre-processing for Example 1.
+
+NOTE: Example 1 is a magnetic-field validation benchmark and does not actually perform topology optimization.
+This module is present for structural consistency with the other examples but is invoked in field-only mode.
+
+Refer to the Example 3 version (``3. pyTOM Numerical ex 3/F3_Pre_Opt_Init.py``) for the full documentation of the optimization initialization
+(design-domain DOF separation, design-variable bounds, Helmholtz filter assembly with cached LU, element-to-nodal averaging matrix, MMA parameters).
+"""
+
 import numpy as np
 from scipy.sparse.linalg import splu
 import scipy.sparse as sp

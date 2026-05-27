@@ -1,3 +1,15 @@
+"""
+F8_Main_Comp_Sens.py — Numerical Example 1 (IPM motor benchmark)
+==================================================================
+
+Adjoint sensitivity analysis for Example 1.
+
+NOTE: Example 1 is a field-validation benchmark and does not actually perform topology optimization. This module is present for structural consistency with the other examples but is not invoked.
+
+Refer to the Example 3 version (``3. pyTOM Numerical ex 3/F8_Main_Comp_Sens.py``) for the full documentation of the adjoint sensitivity chain
+(dF/dA from MST edge integrals, adjoint solve with the converged NR Jacobian, SIMP differentiation, projection and Helmholtz filter chain).
+"""
+
 import numpy as np
 from scipy.sparse.linalg import spsolve
 from scipy.spatial.distance import cdist

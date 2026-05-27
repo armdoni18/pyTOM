@@ -1,5 +1,18 @@
-import numpy as np
+"""
+F0_Main_PM_Source.py — Numerical Example 1 (IPM motor benchmark)
+==================================================================
 
+Permanent-magnet source assembly for the IPM motor of Section 5.1.
+
+For this example the motor carries multiple PMs (rotor magnets) with different magnetization directions, supplied through the ``inputs["PM"]`` dictionary's parallel lists ``domIDs``, ``Br``, ``theta``.
+
+Same algorithmic role as the Example 3 version (``3. pyTOM Numerical ex 3/F0_Main_PM_Source.py``), where the full documentation of the equivalent-current representation of curl(nu * Br), the edge integration,
+and the lumped nodal contribution is provided. The IPM version computes the triangle signed-area orientation once per element.
+
+Implements the f_pm term of Eq. (2) in Section 2.1.
+"""
+
+import numpy as np
 
 def F0_Main_PM_Source(fem, inputs):
 

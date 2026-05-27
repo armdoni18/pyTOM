@@ -1,3 +1,17 @@
+"""
+Main_code_Ex1.py
+================
+
+Top-level driver script for Numerical Example 1:
+validation of the magnetostatic vector-potential formulation against COMSOL on the one-quarter IPM motor (Section 5.1 of the manuscript, Fig. 3 and Table 2).
+
+This script does NOT perform topology optimization. It performs a single nonlinear magnetostatic analysis (Newton-Raphson iteration on Eqs. (4)-(6))
+for the IPM motor configuration and saves the nodal vector potential A and the per-element flux density (Bx, By, |B|) for comparison against the COMSOL reference solution.
+
+The algorithmic structure mirrors the inner solver loop of ``Main_code_Mulpos.py`` (Example 3) but without the multi-position loop and without the outer topology-optimization loop.
+See the Example 3 driver for the full per-iteration documentation.
+"""
+
 import numpy as np
 import scipy.sparse as sp
 from scipy.sparse.linalg import spsolve

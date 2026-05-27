@@ -1,3 +1,13 @@
+"""
+F7_Main_Comp_Force.py — Numerical Example 1 (IPM motor benchmark)
+==================================================================
+
+Maxwell-stress-tensor force evaluation for the IPM motor of Section 5.1.
+
+Same algorithmic role as the Example 3 version (``3. pyTOM Numerical ex 3/F7_Main_Comp_Force.py``), where the full module documentation is provided.
+For the IPM motor, the closed integration loop surrounds the rotor (not the plunger), but the algorithmic structure of the MST integration is identical.
+"""
+
 import numpy as np
 from scipy.spatial.distance import cdist
 

@@ -1,3 +1,13 @@
+"""
+F4_Main_Solve_VecPot.py — Numerical Example 1 (IPM motor benchmark)
+==================================================================
+
+Magnetostatic linear solver for the IPM motor of Section 5.1.
+
+Same algorithmic role as the Example 3 version (``3. pyTOM Numerical ex 3/F4_Main_Solve_VecPot.py``), where the full module documentation is provided.
+Solves Eq. (2) of Section 2.1 to obtain the initial linear vector potential, which is then refined by the Newton-Raphson loop for nonlinear-material cases.
+"""
+
 import numpy as np
 import scipy.sparse as sp
 from scipy.sparse.linalg import spsolve

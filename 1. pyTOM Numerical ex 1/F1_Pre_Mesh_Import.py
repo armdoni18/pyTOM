@@ -1,5 +1,21 @@
-import numpy as np
+"""
+F1_Pre_Mesh_Import.py — Numerical Example 1 (IPM motor benchmark)
+==================================================================
 
+Gmsh mesh parser specialized for the one-quarter IPM motor of Section 5.1 (Fig. 3).
+
+The physical groups parsed for this example are:
+    Air, Stator, Rotor, Coil, PM (with the rotor PMs and the stator coils corresponding to distinct sub-domains in the mesh file).
+
+The general algorithmic role of this module is documented in detail at the top of the Numerical Example 3 version (``3. pyTOM Numerical ex 3/F1_Pre_Mesh_Import.py``).
+The example-3 docstring describes the Gmsh format parsing, the ``IX`` matrix layout, and the multi-position domain-mapping strategy.
+
+For this example (Example 1) Npos is always 1 (no plunger motion).
+
+Module is infrastructure: no equation reference.
+"""
+
+import numpy as np
 
 def F1_Pre_Mesh_Import(modelname: str, Npos: int = 1):
 
