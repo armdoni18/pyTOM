@@ -1,3 +1,13 @@
+"""
+F8_Main_Comp_Sens.py — Numerical Example 2 (linear actuator)
+==================================================================
+
+Adjoint sensitivity analysis for the linear-material actuator of Section 5.2.
+
+Same algorithmic role as the Example 3 version (``3. pyTOM Numerical ex 3/F8_Main_Comp_Sens.py``), where the full module documentation is provided. For the linear example,
+the adjoint Jacobian reduces to the linear stiffness matrix K(nu) (the nonlinearity contribution J_extra is absent), and the SIMP differentiation uses the constant nu_iron instead of nu_iron(|B|).
+"""
+
 import numpy as np
 from scipy.sparse.linalg import spsolve
 from scipy.spatial.distance import cdist

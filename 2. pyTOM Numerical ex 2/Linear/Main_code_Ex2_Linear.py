@@ -1,3 +1,21 @@
+"""
+Main_code_Ex2_Linear.py
+=======================
+
+Top-level driver script for Numerical Example 2 (linear case): topology optimization of the magnetic actuator with a CONSTANT reluctivity for the iron domain (no Brauer model),
+at a fixed plunger position (Section 5.2 of the manuscript, Fig. 5(c-d)).
+
+The driver performs the same outer topology-optimization loop as
+``Main_code_Mulpos.py`` (Example 3) but without:
+  - the multi-position loop (Npos = 1),
+  - the Newton-Raphson iteration on the magnetic field.
+
+For each TO iteration, the design is updated through filtering (Eq. (18)), projection (Eq. (19)), SIMP with constant nu_iron (simplified Eq. (20)), and a SINGLE linear magnetostatic solve in ``F4_Main_Solve_VecPot``.
+The sensitivity is then computed by ``F8_Main_Comp_Sens`` using the linear stiffness matrix as the "Jacobian" (no nonlinearity correction).
+
+See ``3. pyTOM Numerical ex 3/Main_code_Mulpos.py`` for the full per-step documentation of the generic TO loop, including the choice of the Newton-Raphson damping factor alpha and the continuation strategy on beta.
+"""
+
 import numpy as np
 import scipy.sparse as sp
 from scipy.sparse.linalg import spsolve

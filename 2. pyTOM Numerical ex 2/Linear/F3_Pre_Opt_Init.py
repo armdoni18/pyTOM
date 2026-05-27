@@ -1,3 +1,13 @@
+"""
+F3_Pre_Opt_Init.py — Numerical Example 2 (linear actuator)
+==================================================================
+
+Optimization-side pre-processing for the linear-material actuator of Section 5.2.
+Same algorithmic role as the Example 3 version (``3. pyTOM Numerical ex 3/F3_Pre_Opt_Init.py``), where the full module documentation is provided.
+
+The linear example uses Npos = 1 (single plunger position).
+"""
+
 import numpy as np
 from scipy.sparse.linalg import splu
 import scipy.sparse as sp
@@ -48,10 +58,10 @@ def F3_Pre_Opt_Init(inputs, fem):
     opt["dvmin"]   = opt["dv"] * 0 - 1
     opt["dvmax"]   = opt["dv"] * 0 + 1
 
-    opt["iter"]    = 1
-    opt["deltaf"]  = 1.0
-    opt["bt"]      = inputs["bt_init"]
-    opt["cont_sw"] = 0
+    opt["iter"]      = 1
+    opt["deltaf"]    = 1.0
+    opt["bt"]        = inputs["bt_init"]
+    opt["cont_sw"]   = 0
     opt["cont_iter"] = 0
 
     # -------------------------------------------------------

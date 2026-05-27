@@ -1,3 +1,13 @@
+"""
+F7_Main_Comp_Force.py — Numerical Example 2 (linear actuator)
+==================================================================
+
+Maxwell-stress-tensor force evaluation for the linear-material actuator of Section 5.2.
+
+Same algorithmic role as the Example 3 version (``3. pyTOM Numerical ex 3/F7_Main_Comp_Force.py``), where the full module documentation is provided.
+In the linear example, the reluctivity nu_air used on the air-side integration loop is the same nu_air constant as in the SIMP interpolation, and the result is the y-directional force on the plunger.
+"""
+
 import numpy as np
 
 def F7_Main_Comp_Force(fem):

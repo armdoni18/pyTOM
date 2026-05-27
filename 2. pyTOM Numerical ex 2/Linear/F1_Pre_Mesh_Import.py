@@ -1,3 +1,18 @@
+"""
+F1_Pre_Mesh_Import.py — Numerical Example 2 (linear actuator)
+==================================================================
+
+Gmsh mesh parser specialized for the magnetic actuator of Section 5.2 with the linear material assumption (Fig. 4).
+
+The physical groups parsed for this example are:
+    Air=1, Design=2, Coil1=3, Coil2=4, Plunger=5, FixIron=6, PM1=7.
+
+Same algorithmic role as the Example 3 version (``3. pyTOM Numerical ex 3/F1_Pre_Mesh_Import.py``), where the full module documentation is provided.
+The linear example does not require multi-position handling (Npos = 1).
+
+Module is infrastructure: no equation reference.
+"""
+
 import numpy as np
 
 

@@ -1,4 +1,16 @@
 ########################################################################################################
+### THIRD-PARTY MODULE — DO NOT MODIFY                                                              ###
+###                                                                                                   ###
+### This file is the Python port of K. Svanberg's Method of Moving Asymptotes (references            ###
+### [21,22] of the pyTOM manuscript). It is included unmodified in this repository and is            ###
+### governed by its own GNU General Public License (see the header below).                           ###
+###                                                                                                  ###
+### The pyTOM framework interacts with it through the `mmasub` function only. Users wishing          ###
+### to substitute an alternative optimizer can do so by replacing the single `mmasub(...)` call      ###
+### in `Main_code_Mulpos.py` (or in `Run_multinpos.py`); the rest of pyTOM is independent of MMA.    ###
+########################################################################################################
+
+########################################################################################################
 ### GCMMA-MMA-Python         															             ### 
 ###                                                                                                  ###
 ### This file is part of GCMMA-MMA-Python. GCMMA-MMA-Python is licensed under the terms of GNU       ###
