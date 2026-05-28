@@ -1,3 +1,28 @@
+"""
+Main_code_Mulpos.py
+===================
+
+Top-level driver script for the third numerical example: topology
+optimization of a magnetic actuator with multi-position evaluation
+of the magnetic force.
+
+This script orchestrates three nested loops:
+
+  1. Outer topology-optimization loop (driven by the MMA optimizer
+     and by the continuation strategy on the projection sharpness
+     beta of Eq. (19)).
+  2. Multi-position loop over N_pos plunger configurations
+     (the design variable is shared across positions).
+  3. Innermost Newton-Raphson loop on the nonlinear magnetostatic
+     problem of Eqs. (4)-(6) for each plunger position.
+
+The implementation follows the workflow of Section 4.1 and
+Fig. 2 of the manuscript. See Appendix A for per-module details.
+
+For a single-execution sweep over several N_pos values (used to
+generate Figs. 7 and 8), use ``Run_multinpos.py`` instead.
+"""
+
 import numpy as np
 import scipy.sparse as sp
 from scipy.sparse.linalg import spsolve
@@ -88,6 +113,10 @@ pm_domIDs = set(inputs["PM"]["domIDs"])
 while (opt["bt"] < inputs["bt_fn"]) and (opt["iter"] <= inputs["iterMax"]):
 
     # ── Filter + Projection ──────────────────────────────────────────────────
+    # Eq. (18): Helmholtz filter via cached LU back-substitution.
+    # The filtered nodal field opt["fdv"] is then projected by the
+    # regularized Heaviside (Eq. (19)) and clipped to [-1, 1]
+    # (numerical safeguard; see F3 docstring for the rationale).
     opt["fdv"]  = spsolve(opt["Kft_sparse"],
                           sp.csc_matrix.dot(opt["Tft"], opt["nv"]))
     opt["nrho"] = np.maximum(
@@ -164,30 +193,30 @@ while (opt["bt"] < inputs["bt_fn"]) and (opt["iter"] <= inputs["iterMax"]):
             fem = F5_Main_Comp_Flux(fem)
             B   = fem["B"]
 
-            # STEP 3: Update nu_e_all(B) —──────────────────
-            dom_cur  = IX[:, 3].astype(int)
-            dnu_dB_e = np.zeros(ne, dtype=float)
-
-            # --- Nonlinear elements: design domain (2) + fixed iron (5, 6) ---
-            # Compute mu(B) and dmu/dB for ALL elements once
-            mu_all  = F0_Main_Mat_Nonlinear(B)    # (ne,)  -- mu(B) everywhere
-            dmu_all = F0_Main_Mat_Derivative(B)   # (ne,)
+            # ── nu(B) update — SIMP combined with nonlinear iron ──────
+            # Compute mu(B) and dmu/dB from the Brauer model for
+            # ALL elements once, then convert to nu and dnu/dB.
+            mu_all  = F0_Main_Mat_Nonlinear(B)    # (ne,)  mu(B) everywhere
+            dmu_all = F0_Main_Mat_Derivative(B)   # (ne,)  dmu/dB
             nu_nl   = 1.0 / mu_all                # nu(B)
-            dnu_nl  = -dmu_all / (mu_all ** 2)    # dnu/dB
+            dnu_nl  = -dmu_all / (mu_all ** 2)    # dnu/dB via chain rule
 
-            # Fixed iron (domains 5, 6)
+            # Fixed iron domains (domains 5, 6): use nu_iron(|B|) directly
             fi_mask = (dom_cur == 5) | (dom_cur == 6)
             nu_e_all[fi_mask]  = nu_nl[fi_mask]
             dnu_dB_e[fi_mask]  = dnu_nl[fi_mask]
 
-            # Design domain (domain 2): SIMP with nonlinear iron
+            # Design domain (domain 2): SIMP interpolation of Eq. (20)
+            # combined with the nonlinear iron reluctivity at the
+            # current field:
+            #   nu(rho, |B|) = nu_air + (nu_iron(|B|) - nu_air) * rho^p
             dd2_mask = (dom_cur == 2)
             nu_e_all[dd2_mask] = (inputs["nu_air"] +
                                    (nu_nl[dd2_mask] - inputs["nu_air"]) *
                                    erho_vec[dd2_mask] ** penal)
             dnu_dB_e[dd2_mask] = dnu_nl[dd2_mask] * erho_vec[dd2_mask] ** penal
 
-            # Coil and PM: constant reluctivity, dnu/dB = 0
+            # Coil and PM domains: constant reluctivity, dnu/dB = 0
             nu_e_all[dom_cur == 3] = inputs["nu_coil1"]
             nu_e_all[dom_cur == 4] = inputs["nu_coil2"]
             for pmid in pm_domIDs:
@@ -195,20 +224,31 @@ while (opt["bt"] < inputs["bt_fn"]) and (opt["iter"] <= inputs["iterMax"]):
 
             fem["nu_e"] = nu_e_all.copy()
 
-            # STEP 4: Assemble S and J
+            # STEP 4: Assemble S(nu) and the NR Jacobian K_t (Eq. (5))
             fem, J_mat = F6_Main_NR_Jacobian(fem, nu_e_all, dnu_dB_e)
 
-            # STEP 5: Residual
+            # STEP 5: Residual of Eq. (4):  R = S(nu) A - (f + f_pm)
             R_full = fem["S"].dot(A_old) - T_rhs
             R      = R_full[freedof]
 
-            # STEP 6: Newton update
+            # STEP 6: Newton-Raphson linearization (Eq. (5)):
+            #   K_t[free,free] * dA[free] = -R[free]
             J_ff       = J_mat[freedof][:, freedof]
             deltaA_free = -spsolve(J_ff, R)
 
             deltaA          = np.zeros_like(A_old)
             deltaA[freedof] = deltaA_free
 
+            # STEP 7: Damped Newton update — Eq. (6) with damping
+            #   A^(k+1) = A^(k) + alpha * dA
+            # The damping factor alpha = 0.2 was selected empirically
+            # to ensure robust convergence in deeply saturated regions
+            # during the early topology-optimization iterations. Full
+            # Newton (alpha = 1) can diverge near the saturation knee
+            # when the design is far from optimum; the reduced step
+            # trades a larger NR iteration count for substantially
+            # improved global robustness across the continuation
+            # history.
             alpha  = 0.2
             A_new  = A_old + alpha * deltaA
             A_new[fixdof] = bcval
@@ -249,7 +289,8 @@ while (opt["bt"] < inputs["bt_fn"]) and (opt["iter"] <= inputs["iterMax"]):
         dfdx_pos.append(np.asarray(dfdx).reshape(-1, 1))
         dgdx_pos.append(np.asarray(dgdx).reshape(1, -1))
 
-    # ── Averaging across positions ───────────────────────────────────────────
+    # ── Averaging across positions (Eqs. (15), (22)) ────────────────────────
+    # F_avg = (1/N_pos) * sum_i F^i and similarly for dF/dphi.
     if ((opt["iter"] == inputs["iterMax"]) or
             (opt["deltaf"] < inputs["conv"])) and (opt["iter"] > saved_iter):
         force_profile_final = f_pos.copy()
@@ -312,7 +353,13 @@ while (opt["bt"] < inputs["bt_fn"]) and (opt["iter"] <= inputs["iterMax"]):
     opt["dv"]       = opt["dvnew"]
     opt["nv"][opt["dof_dd"] - 1] = opt["dv"]
 
-    # ── Continuation ─────────────────────────────────────────────────────────
+    # ── Continuation strategy on projection sharpness beta ──────────────────
+    # Once the relative objective change falls below `conv`, switch
+    # to continuation mode: every `bt_ns` iterations, multiply beta
+    # by `bt_ic` until beta reaches `bt_fn`. This gradually
+    # sharpens the Heaviside projection (Eq. (19)) from a smooth
+    # transition to a near-step function, driving the design
+    # toward a black-and-white topology.
     if (opt["cont_sw"] == 0) and (opt["deltaf"] < inputs["conv"]):
         opt["cont_sw"]   = 1
         opt["cont_iter"] = 0

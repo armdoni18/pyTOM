@@ -1,3 +1,24 @@
+"""
+F9_Post_Process_Plot.py
+=======================
+
+Post-processing and visualization. Generates the figures used
+throughout Section 5 of the manuscript:
+
+    1. Objective history (force vs. iteration).
+    2. Volume-constraint history.
+    3. Final density field.
+    4. Magnetic vector potential contour.
+    5. Magnetic flux density magnitude.
+    6. Maxwell stress tensor integration path overlay.
+
+The output directory is configurable through the ``out_dir``
+argument so that ``Run_multinpos.py`` can route each N_pos run
+to its own subfolder.
+
+Module is infrastructure: no equation reference.
+"""
+
 import os
 import numpy as np
 
@@ -12,6 +33,30 @@ from collections import defaultdict
 
 def F9_Post_Process_Plot(fem, opt, fields_pos=None, mst_pos=None,
                          out_dir="Figures", dpi=200, density_thr=0.9):
+    """
+    Render diagnostics and result plots to ``out_dir``.
+
+    Parameters
+    ----------
+    fem : dict
+        Finite-element state at the current iteration.
+    opt : dict
+        Optimization state (history arrays, ``iter``, ``bt``, ...).
+    fields_pos : dict or None
+        Snapshots of (A, B, IX) keyed by plunger position index
+        (1-based). Saved at selected ``plot_positions`` to
+        visualize the magnetic field at representative positions.
+    mst_pos : dict or None
+        Saved Maxwell-stress-tensor integration data per plunger
+        position, used to overlay the closed air loop on the
+        plots.
+    out_dir : str
+        Output directory (created if it does not exist).
+    dpi : int
+        Figure resolution.
+    density_thr : float
+        Threshold for the "binary" density rendering.
+    """
 
     os.makedirs(out_dir, exist_ok=True)
     it = int(opt["iter"])

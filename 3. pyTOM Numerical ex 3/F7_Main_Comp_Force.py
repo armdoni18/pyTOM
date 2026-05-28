@@ -1,7 +1,58 @@
+"""
+F7_Main_Comp_Force.py
+=====================
+
+Electromagnetic force on the plunger via Maxwell stress tensor integration along a closed air-side path that surrounds the plunger.
+
+Theory link
+-----------
+The Maxwell stress tensor of Eq. (7),
+
+    T = nu * (B o B - (1/2) |B|^2 I) ,
+
+is integrated over a closed path Gamma (Eq. (8)) to give the electromagnetic force on the plunger. The closed path lies entirely in the air domain so that T is evaluated with the linear reluctivity nu_air;
+integrating through the iron region would give an incorrect force because of the material nonlinearity gradient.
+
+The discrete approximation of Eq. (9),
+
+    F approx sum_k T_k n_k Delta s_k ,
+
+is implemented as a vectorized sum over the edges of the closed air loop. The construction of that closed loop takes three steps:
+
+  1. Identify the boundary edges of the plunger domain.
+  2. Collect the air-domain triangles that share at least one node with the plunger boundary.
+  3. Extract the outer envelope of those air triangles and remove the plunger-boundary edges themselves, leaving a closed loop on the air side of the plunger.
+
+For each edge, the field quantities needed for T are taken from the nearest element to a midpoint shifted slightly inward (eps_shift = 1e-3 in mesh length units).
+The small inward shift biases the nearest-element search to land on an air-side triangle instead of a plunger-side triangle, which guarantees that the reluctivity used is nu_air and not nu_iron.
+
+The outward-normal orientation is enforced by comparing the normal with the vector from the edge midpoint to the plunger centroid: if the two have a positive dot product, the normal is flipped so it points away from the plunger.
+"""
+
 import numpy as np
 
 def F7_Main_Comp_Force(fem):
+    """
+    Evaluate the electromagnetic force on the plunger.
 
+    Parameters
+    ----------
+    fem : dict
+        Finite-element data with the converged field. Must contain ``IX``, ``X``, ``ne``, ``nu_e``, ``Bx``, ``By``.
+
+    Returns
+    -------
+    Fx_total : float
+        x-component of the total force on the plunger.
+    Fy_total : float
+        y-component of the total force on the plunger.
+    fem : dict
+        Updated in place with:
+            ``plunger_boundary_edges``
+            ``cleaned_air_loop_around_plunger``
+            ``mst`` : dict with the integration path and per-edge force contributions, used by F9 plotting.
+            ``Fx_total``, ``Fy_total``
+    """
     IX = fem["IX"]
     X  = fem["X"]
     ne = int(fem["ne"])
@@ -109,7 +160,11 @@ def F7_Main_Comp_Force(fem):
     flip_mask = dot_sign > 0.0
     normal[flip_mask, :] *= -1.0
 
-    # Shifted midpoints (toward plunger, i.e. inward)
+    # Shifted midpoints (toward plunger, i.e. inward).
+    # The small inward shift biases the nearest-element search to
+    # land on an air-side triangle (domain = 1) instead of a
+    # plunger-side triangle (domain = 5), so the reluctivity used
+    # in the Maxwell stress tensor is nu_air and not nu_iron.
     eps_shift   = 1e-3
     shifted_mid = mid + eps_shift * normal   # (Nedge, 2)
 
@@ -129,11 +184,15 @@ def F7_Main_Comp_Force(fem):
     ny = normal[:, 1]
 
     # MST using reluctivity nu:
+    # Eq. (7) in component form for 2D (in-plane B only):
+    #   T_xx = nu * 0.5 * (B_x^2 - B_y^2)
+    #   T_xy = nu * B_x * B_y
+    #   T_yy = nu * 0.5 * (B_y^2 - B_x^2)
     Txx = nu * 0.5 * (Bx**2 - By**2)
     Txy = nu * Bx * By
     Tyy = nu * 0.5 * (By**2 - Bx**2)
 
-    # dF = T @ n * ds
+    # Eq. (9): per-edge contribution dF = T n ds
     dFx = (Txx * nx + Txy * ny) * ds   # (Nedge,)
     dFy = (Txy * nx + Tyy * ny) * ds
 

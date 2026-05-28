@@ -1,3 +1,28 @@
+"""
+F1_Pre_Mesh_Import.py
+=====================
+
+Gmsh mesh parser for the third numerical example (multi-position actuator).
+
+Reads a Gmsh ``.msh`` file (format 4.1) and extracts the node coordinates, the triangular element connectivity, and the physical-group domain identifiers.
+The output ``IX`` matrix has shape (ne, 4) where columns 0-2 are one-based node indices of each triangle and column 3 is the integer domain identifier.
+
+Domain identifiers used in this example:
+    1 = Air
+    2 = Design (yoke design domain)
+    3 = Coil1
+    4 = Coil2
+    5 = Plunger
+    6 = FixIron (non-design iron of the yoke)
+    7 = PM1 (permanent magnet)
+
+For the multi-position case (Npos > 1), this function additionally returns ``IX_all``: a list of ``Npos`` alternative column-3 arrays, one per plunger position.
+The driver swaps column 3 of ``IX`` across positions instead of physically translating the mesh;
+this "domain-mapping" strategy preserves mesh quality and avoids costly remeshing operations during the multi-position evaluation.
+
+Module is infrastructure: no equation reference.
+"""
+
 import numpy as np
 
 

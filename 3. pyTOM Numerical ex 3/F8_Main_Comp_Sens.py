@@ -1,3 +1,52 @@
+"""
+F8_Main_Comp_Sens.py
+====================
+
+Adjoint sensitivity analysis for the force objective and the volume constraint, with the chain rule extending through the SIMP interpolation (Eq. (20)), the Heaviside projection (Eq. (19)), and the Helmholtz filter (Eq. (18)).
+
+Theory link
+-----------
+The total design sensitivity (Eq. (23)) for the force objective combines an explicit term and an implicit term:
+
+    dF / d phi  =  (partial F / partial A) (dA / d phi)
+                 + (partial F / partial phi) .
+
+The implicit term is evaluated efficiently by the adjoint method: a single linear solve of Eq. (24) gives lambda from
+
+    K_t^T lambda = partial F / partial A ,
+
+where K_t is the converged Newton-Raphson Jacobian assembled in ``F6_Main_NR_Jacobian.py``. The sensitivity then reduces to the compact form of Eq. (25),
+
+    dF / d phi  =  - lambda^T (partial R / partial phi) ,
+
+with the partial derivative of the residual flowing through the SIMP interpolation, the projection, and the filter.
+
+Implementation overview
+-----------------------
+STEP 1: dF / dA from MST edge integrals
+    Differentiates Eq. (9) with respect to the nodal A_z values. For each edge of the closed air loop (same edges as in ``F7_Main_Comp_Force.py``),
+    the chain rule combines the dependence of (T_xx, T_xy, T_yy) on B with the dependence of B on the three nodal A values of the neighboring element.
+
+STEP 2: Adjoint solve
+    Eq. (24) with the converged NR Jacobian (passed in as ``J``).
+
+STEP 3: dF / drho_e via SIMP differentiation
+    For design-domain elements only:
+        dnu/drho = (nu_iron(|B|) - nu_air) * p * rho^(p-1) ,
+    and the element-level sensitivity is
+        dF/drho_e = lambda^T (dnu/drho * K0_e) A .
+
+STEP 4: Chain to nodal design variables
+    The projection derivative contributes the factor
+        beta * sech^2(beta * phi_tilde) / (2 tanh beta)
+    and the Helmholtz filter contributes a back-substitution
+    against the cached LU factorization. The result is then
+    restricted to the design-domain DOFs.
+
+The volume sensitivity (Eq. (26)) follows the same projection and
+filter chain with the constant dV/drho_e = A_e / V_T.
+"""
+
 import numpy as np
 from scipy.sparse.linalg import spsolve
 from scipy.spatial.distance import cdist
@@ -5,10 +54,42 @@ from F0_Main_Mat_Nonlinear import F0_Main_Mat_Nonlinear
 
 
 def _sech2(x: np.ndarray) -> np.ndarray:
+    """Element-wise sech^2(x) = 1 / cosh(x)^2."""
     return 1.0 / (np.cosh(x) ** 2)
 
 def F8_Main_Comp_Sens(fem, opt, J):
+    """
+    Compute adjoint sensitivities for the force and volume.
 
+    Parameters
+    ----------
+    fem : dict
+        Finite-element data at the converged NR state. Must
+        contain the same entries used by F7, plus ``nu_e``.
+    opt : dict
+        Optimization state (filter LU factors, Ten matrix,
+        current ``erho``, projection sharpness ``bt``, etc.).
+    J : csc_matrix
+        Converged Newton-Raphson Jacobian K_t from
+        ``F6_Main_NR_Jacobian``.
+
+    Returns
+    -------
+    f : float
+        Scalar objective value (Fy total).
+    g : float
+        Volume-constraint value (V/VT - volfrac).
+    dfdx : ndarray, shape (n_dd, 1)
+        Sensitivity of f w.r.t. design DOFs.
+    dgdx : ndarray, shape (1, n_dd)
+        Sensitivity of g w.r.t. design DOFs.
+    dfdrho_e : ndarray, shape (ne, 1)
+        Element-level objective sensitivity (diagnostic).
+    lam : ndarray, shape (ndof, 1)
+        Adjoint vector (diagnostic).
+    dfdA : ndarray, shape (ndof, 1)
+        Explicit dF/dA contribution (diagnostic).
+    """
     f = float(fem.get("Fy_total", 0.0))
 
     IX     = np.asarray(fem["IX"], dtype=int)

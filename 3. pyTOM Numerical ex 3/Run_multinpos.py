@@ -1,3 +1,28 @@
+"""
+Run_multinpos.py
+================
+
+Multi-N_pos wrapper that executes the topology-optimization driver
+for a list of plunger-position counts in a single Python session
+and produces the comparative force-profile plot.
+
+This is the script used to generate Figs. 7 and 8 of the
+manuscript. It encapsulates the full driver of
+``Main_code_Mulpos.py`` as a function ``run_single_npos`` and
+loops over the user-specified ``NPOS_LIST``. The per-run results
+are saved to dedicated subfolders and a final comparison plot
+``Comparison_Force_Profile.png`` is generated.
+
+User settings
+-------------
+    NPOS_LIST   : list of int   N_pos values to sweep
+    RESULTS_DIR : str           root output folder
+    INPUTS_BASE : dict          base input dictionary (penalization,
+                                volume fraction, MMA parameters,
+                                continuation schedule, PM data, ...)
+    STYLE_MAP   : dict          per-N_pos plot styles
+"""
+
 import os
 import copy
 import time

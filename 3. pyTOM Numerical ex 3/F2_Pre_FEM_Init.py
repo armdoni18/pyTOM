@@ -1,6 +1,50 @@
+"""
+F2_Pre_FEM_Init.py
+==================
+
+Finite-element pre-processing for the magnetostatic problem.
+
+This module is called once before the topology-optimization loop begins. It produces three things that are reused on every iteration of the outer TO loop and the inner Newton-Raphson loop:
+
+1. The element-level stiffness building block ``K0_e`` (without the reluctivity factor), stored in flat form as ``fem["S_S"]`` together with COO triplet indices ``fem["is"]`` and ``fem["js"]``.
+   This implements the element kernel of Eq. (21) in the form  K0_e = (b o b + c o c) / (4 * A_e).
+
+2. The Dirichlet boundary-condition information ``bcdof``, ``bcval``. The constrained nodes are detected geometrically from the bounding box of the actuator domain (x in {0, 120}, y in {0, 140} for Example 3).
+
+3. The coil current source vector data ``Tdof``, ``Tval``, contributing to f in Eq. (2). Each coil element distributes J * A_e / 3 to each of its three nodes,
+   with opposite signs for the two coil regions modelling the in-and-out return path.
+"""
+
 import numpy as np
 
 def F2_Pre_FEM_Init(inputs, mesh):
+    """
+    Build the FEM data structures used by F4, F5, F6, F7, F8.
+
+    Parameters
+    ----------
+    inputs : dict
+        Problem inputs. Used here for ``inputs["J_am2"]`` (coil current density).
+    mesh : dict
+        Mesh data from ``F1_Pre_Mesh_Import``. Must contain ``IX`` (element connectivity), ``X`` (node coordinates).
+
+    Returns
+    -------
+    fem : dict
+        Finite-element data structure with the following entries:
+
+            IX, X, nn, ndof, ne   : mesh and DOF counts
+            edof                  : (ne, 3) element-to-DOF map
+            is, js                : COO triplet row/col indices
+            D                     : 2D constitutive identity
+            nx, ny                : (ne, 3) nodal coords per elem
+            Ae                    : (ne,)   element areas
+            S_S                   : (9*ne,) flat K0_e kernel
+            bcdof, bcval          : Dirichlet info (1-based dofs)
+            ncoil1, ncoil2        : (nc, 3) coil node sets
+            c_A_all_coil1/2       : (nc,) coil element areas
+            Tdof, Tval            : coil source triplets (1-based)
+    """
 
     fem = {}
     fem["IX"]   = mesh["IX"]
@@ -12,6 +56,9 @@ def F2_Pre_FEM_Init(inputs, mesh):
                             fem["IX"][:, 1],
                             fem["IX"][:, 2]], dtype=int).T   # (ne, 3)
 
+    # COO triplet row/col index arrays for global assembly.
+    # Each element contributes 9 entries (3x3 block); these arrays
+    # are reused by F4_Main_Solve_VecPot and F6_Main_NR_Jacobian.
     fem["is"] = np.reshape(np.kron(fem["edof"], np.ones((1, 3), dtype=int)), 9 * fem["ne"])
     fem["js"] = np.reshape(np.kron(fem["edof"], np.ones((3, 1), dtype=int)), 9 * fem["ne"])
     fem["D"]  = np.eye(2, dtype=float)
@@ -24,7 +71,7 @@ def F2_Pre_FEM_Init(inputs, mesh):
     ne  = fem["ne"]
 
     # 0-based node indices
-    n0 = IX[:, 0] - 1   # (ne,)
+    n0 = IX[:, 0] - 1
     n1 = IX[:, 1] - 1
     n2 = IX[:, 2] - 1
 
@@ -36,7 +83,7 @@ def F2_Pre_FEM_Init(inputs, mesh):
     fem["ny"] = np.column_stack([y0, y1, y2])   # (ne, 3)
 
     # -------------------------------------------------------
-    # Element area  Ae = 0.5 * |det([1 x0 y0; 1 x1 y1; 1 x2 y2])|
+    # Element area  A_e = 0.5 * |det([1 x0 y0; 1 x1 y1; 1 x2 y2])|
     # -------------------------------------------------------
     Ae = 0.5 * np.abs(
         (x1 - x0) * (y2 - y0) - (x2 - x0) * (y1 - y0)
@@ -44,24 +91,29 @@ def F2_Pre_FEM_Init(inputs, mesh):
     fem["Ae"] = Ae   # (ne,)
 
     # -------------------------------------------------------
-    # Shape function gradients  b_i, c_i  (ne, 3)
+    # Shape-function gradient coefficients (b_i, c_i)  (ne, 3)
+    #   b_0 = y_1 - y_2,  b_1 = y_2 - y_0,  b_2 = y_0 - y_1
+    #   c_0 = x_2 - x_1,  c_1 = x_0 - x_2,  c_2 = x_1 - x_0
     # -------------------------------------------------------
-    # b0 = y1-y2, b1 = y2-y0, b2 = y0-y1
-    # c0 = x2-x1, c1 = x0-x2, c2 = x1-x0
     b = np.column_stack([y1 - y2, y2 - y0, y0 - y1])   # (ne, 3)
     c = np.column_stack([x2 - x1, x0 - x2, x1 - x0])   # (ne, 3)
 
     inv2A = 1.0 / (2.0 * Ae)   # (ne,)
 
-    # Outer products: (ne, 3, 3)
+    # Eq. (21) without nu:  K0_e = (b o b + c o c) / (4 * A_e)
+    # Vectorized outer product over all elements; the factor 0.25
+    # combines with the inv2A to give the required 1/(4 A_e).
     Se_all = (
         np.einsum('ei,ej->eij', c, c) + np.einsum('ei,ej->eij', b, b)
-    ) * (inv2A * 0.25)[:, None, None]   # multiply by 1/(4A)
+    ) * (inv2A * 0.25)[:, None, None]
 
-    fem["S_S"] = Se_all.reshape(-1)   # (9*ne,)
+    # Stored flat (9*ne,) for compatibility with COO assembly.
+    fem["S_S"] = Se_all.reshape(-1)
 
     # -------------------------------------------------------
-    # Boundary conditions
+    # Dirichlet boundary conditions
+    # Detect boundary nodes from the bounding box of the
+    # actuator domain (x in {0, 120}, y in {0, 140} in mm).
     # -------------------------------------------------------
     tol = 1e-9
     X_   = np.asarray(mesh["X"], dtype=float)
@@ -79,6 +131,10 @@ def F2_Pre_FEM_Init(inputs, mesh):
 
     # -------------------------------------------------------
     # Coil excitation (current source vector)
+    # Each coil element contributes J * A_e / 3 to each of its
+    # three nodes. Coil 1 (domain 3) gets the positive sign,
+    # coil 2 (domain 4) gets the negative sign, modelling the
+    # in-and-out current return path.
     # -------------------------------------------------------
     J_val = float(inputs["J_am2"])
 
@@ -101,7 +157,7 @@ def F2_Pre_FEM_Init(inputs, mesh):
         fem[key]  = nodes_c
         mesh[key] = nodes_c
 
-        # area computation
+        # Coil element areas
         na = nodes_c[:, 0] - 1
         nb = nodes_c[:, 1] - 1
         nc_ = nodes_c[:, 2] - 1
@@ -118,9 +174,10 @@ def F2_Pre_FEM_Init(inputs, mesh):
         c_A_key = "c_A_all_coil1" if coil_dom == 3 else "c_A_all_coil2"
         fem[c_A_key] = c_A
 
+        # Per-node contribution: sign * (A_e / 3) * J
         val = sign * (c_A / 3.0) * J_val   # (nc,)
 
-        # Each element contributes val to its 3 nodes
+        # Each coil element contributes val to each of its 3 nodes
         Tdof_list.append(nodes_c[:, 0])
         Tdof_list.append(nodes_c[:, 1])
         Tdof_list.append(nodes_c[:, 2])
