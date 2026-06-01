@@ -1,11 +1,13 @@
 """
-F9_Post_Process_Plot.py — Numerical Example 2 (nonlinear actuator)
-==================================================================
+F9_Post_Process_Plot.py
+=======================
 
-Post-processing and visualization for the nonlinear-material actuator of Section 5.2.
-Renders the optimized topology, the magnetic field, and the convergence histories (Fig. 5(a-b)).
+Post-processing and visualization for the nonlinear-material
+actuator of Section 5.2. Renders the optimized topology, the
+magnetic field, and the convergence histories (Fig. 5(a-b)).
 
-The general role of this module is documented in detail in the Example 3 version (``3. pyTOM Numerical ex 3/F9_Post_Process_Plot.py``).
+The general role of this module is documented in detail in the
+Example 3 version (``3. pyTOM Numerical ex 3/F9_Post_Process_Plot.py``).
 
 Module is infrastructure: no equation reference.
 """
@@ -117,7 +119,7 @@ def F9_Post_Process_Plot(fem, opt, fields_pos=None, mst_pos=None,
     rho_dd = erho[dd_mask]
 
     if "B" not in fem:
-        raise ValueError("fem['B'] tidak ditemukan. Pastikan B sudah disimpan di FEM.")
+        raise ValueError("fem['B'] not found. Ensure B has been computed and stored in FEM.")
 
     B_all = np.asarray(fem["B"], dtype=float)
     B_dd = B_all[dd_mask]
