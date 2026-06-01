@@ -1,11 +1,17 @@
 """
-F8_Main_Comp_Sens.py — Numerical Example 2 (linear actuator)
-==================================================================
+F8_Main_Comp_Sens.py
+====================
 
-Adjoint sensitivity analysis for the linear-material actuator of Section 5.2.
+Adjoint sensitivity analysis for the linear-material actuator of
+Section 5.2.
 
-Same algorithmic role as the Example 3 version (``3. pyTOM Numerical ex 3/F8_Main_Comp_Sens.py``), where the full module documentation is provided. For the linear example,
-the adjoint Jacobian reduces to the linear stiffness matrix K(nu) (the nonlinearity contribution J_extra is absent), and the SIMP differentiation uses the constant nu_iron instead of nu_iron(|B|).
+Same algorithmic role as the Example 3 version
+(``3. pyTOM Numerical ex 3/F8_Main_Comp_Sens.py``), where the
+full module documentation is provided. For the linear example,
+the adjoint Jacobian reduces to the linear stiffness matrix
+K(nu) (the nonlinearity contribution J_extra is absent), and
+the SIMP differentiation uses the constant nu_iron instead of
+nu_iron(|B|).
 """
 
 import numpy as np
@@ -117,9 +123,10 @@ def F8_Main_Comp_Sens(fem, opt, inputs):
     # -------------------------------------------------------
     S = fem["S"]
 
+    # STEP 2: Adjoint solve  -- Eq. (24):  K_t^T lambda = dF/dA
     all_dofs = np.arange(ndof, dtype=int)
-    fixdof   = np.asarray(fem["bcdof"], dtype=int).reshape(-1) - 1
-    freedof  = np.setdiff1d(all_dofs, fixdof)
+    fixdof   = np.asarray(fem["bcdof"], dtype=int).reshape(-1) - 1   # Dirichlet DOFs
+    freedof  = np.setdiff1d(all_dofs, fixdof)                        # free DOFs
 
     lam = np.zeros(ndof, dtype=float)
     S_ff = S[freedof][:, freedof]

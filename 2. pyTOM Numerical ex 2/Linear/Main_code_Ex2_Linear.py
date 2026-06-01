@@ -2,18 +2,27 @@
 Main_code_Ex2_Linear.py
 =======================
 
-Top-level driver script for Numerical Example 2 (linear case): topology optimization of the magnetic actuator with a CONSTANT reluctivity for the iron domain (no Brauer model),
-at a fixed plunger position (Section 5.2 of the manuscript, Fig. 5(c-d)).
+Top-level driver script for Numerical Example 2 (linear case):
+topology optimization of the magnetic actuator with a CONSTANT
+reluctivity for the iron domain (no Brauer model), at a fixed
+plunger position (Section 5.2 of the manuscript, Fig. 5(c-d)).
 
 The driver performs the same outer topology-optimization loop as
 ``Main_code_Mulpos.py`` (Example 3) but without:
   - the multi-position loop (Npos = 1),
   - the Newton-Raphson iteration on the magnetic field.
 
-For each TO iteration, the design is updated through filtering (Eq. (18)), projection (Eq. (19)), SIMP with constant nu_iron (simplified Eq. (20)), and a SINGLE linear magnetostatic solve in ``F4_Main_Solve_VecPot``.
-The sensitivity is then computed by ``F8_Main_Comp_Sens`` using the linear stiffness matrix as the "Jacobian" (no nonlinearity correction).
+For each TO iteration, the design is updated through filtering
+(Eq. (18)), projection (Eq. (19)), SIMP with constant nu_iron
+(simplified Eq. (20)), and a SINGLE linear magnetostatic solve
+in ``F4_Main_Solve_VecPot``. The sensitivity is then computed by
+``F8_Main_Comp_Sens`` using the linear stiffness matrix as the
+"Jacobian" (no nonlinearity correction).
 
-See ``3. pyTOM Numerical ex 3/Main_code_Mulpos.py`` for the full per-step documentation of the generic TO loop, including the choice of the Newton-Raphson damping factor alpha and the continuation strategy on beta.
+See ``3. pyTOM Numerical ex 3/Main_code_Mulpos.py`` for the
+full per-step documentation of the generic TO loop, including
+the choice of the Newton-Raphson damping factor alpha and the
+continuation strategy on beta.
 """
 
 import numpy as np
@@ -37,29 +46,40 @@ modelname = "Example_2_Actuator_Linear"
 Npos = 1   # static single-position problem (no plunger stroke)
 
 inputs = {}
-inputs["penal"]     = 3
-inputs["initdv"]    = -0.5
-# --- Volume parameters  ---
-inputs["VT"]        = 97500     # bounding-box area
-inputs["VND"]       = 53500     # non-design area = VT - VDD
-inputs["VDD"]       = 44000     # design domain area
-inputs["volfrac"]   = 0.40
-inputs["mu0"]       = 4 * np.pi * 1e-7
-inputs["mur_air"]   = 1
-inputs["mur_coil1"] = 1
-inputs["mur_coil2"] = 1
-inputs["mur_iron"]  = 1500
-inputs["mur_PM"]    = 1
-inputs["J_am2"]     = 2500
-inputs["conv"]      = 0.008
-inputs["bt_init"]   = 0.1
-inputs["bt_ic"]     = 1.5
-inputs["bt_ns"]     = 4
-inputs["bt_fn"]     = 1000
-inputs["MMA"]       = 1000
-inputs["rmin"]      = 20
-inputs["iterMax"]   = 400
-inputs["scale"]     = 100
+
+# --- Optimization / SIMP parameters ---
+inputs["penal"]     = 3                       # SIMP penalization exponent p (Eq. (20))
+inputs["initdv"]    = -0.5                    # initial (unfiltered) design-variable value
+
+# --- Volume parameters ---
+inputs["VT"]        = 97500                   # total bounding-box area of the model
+inputs["VND"]       = 53500                   # non-design area  (= VT - VDD)
+inputs["VDD"]       = 44000                   # design-domain area
+inputs["volfrac"]   = 0.40                    # prescribed volume fraction V* (Eq. (13))
+
+# --- Material properties (relative permeability) ---
+inputs["mu0"]       = 4 * np.pi * 1e-7        # vacuum permeability mu_0 [H/m]
+inputs["mur_air"]   = 1                       # relative permeability of air
+inputs["mur_coil1"] = 1                       # relative permeability of coil 1
+inputs["mur_coil2"] = 1                       # relative permeability of coil 2
+inputs["mur_iron"]  = 1500                    # relative permeability of (linear-reference) iron
+inputs["mur_PM"]    = 1                       # relative permeability of the PM region
+
+# --- Coil excitation ---
+inputs["J_am2"]     = 2500                    # coil current density [A/m^2]
+
+# --- Continuation schedule (Heaviside projection sharpness beta) ---
+inputs["conv"]      = 0.008                   # objective-change tolerance to trigger continuation
+inputs["bt_init"]   = 0.1                     # initial Heaviside projection sharpness beta (Eq. (19))
+inputs["bt_ic"]     = 1.5                     # beta increase factor per continuation step
+inputs["bt_ns"]     = 4                       # number of iterations between beta increases
+inputs["bt_fn"]     = 1000                    # final beta value (stops the outer TO loop)
+
+# --- Solver / MMA optimizer settings ---
+inputs["MMA"]       = 1000                    # MMA c-constant (before objective scaling)
+inputs["rmin"]      = 20                      # filter radius r_min (mesh length units, Eq. (18))
+inputs["iterMax"]   = 400                     # maximum number of TO iterations
+inputs["scale"]     = 100                     # target objective magnitude for MMA scaling
 
 # --- Permanent Magnet ---
 inputs["PM"] = {
@@ -71,11 +91,11 @@ inputs["PM"] = {
 
 # === Reluctivity inputs (nu = 1/mu) — LINEAR (constant per material) ===
 mu0      = inputs["mu0"]
-inputs["nu_air"]   = 1.0 / (mu0 * inputs["mur_air"])
-inputs["nu_coil1"] = 1.0 / (mu0 * inputs["mur_coil1"])
-inputs["nu_coil2"] = 1.0 / (mu0 * inputs["mur_coil2"])
-inputs["nu_iron"]  = 1.0 / (mu0 * inputs["mur_iron"])
-inputs["nu_PM"]    = 1.0 / (mu0 * inputs["mur_PM"])
+inputs["nu_air"]   = 1.0 / (mu0 * inputs["mur_air"])  # reluctivity of air         (nu = 1/(mu0*mur))
+inputs["nu_coil1"] = 1.0 / (mu0 * inputs["mur_coil1"])  # reluctivity of coil 1
+inputs["nu_coil2"] = 1.0 / (mu0 * inputs["mur_coil2"])  # reluctivity of coil 2
+inputs["nu_iron"]  = 1.0 / (mu0 * inputs["mur_iron"])  # linear-reference reluctivity of iron
+inputs["nu_PM"]    = 1.0 / (mu0 * inputs["mur_PM"])  # reluctivity of the PM region
 
 # === Load mesh and init FEM/OPT ===
 mesh, IX_all = F1_Pre_Mesh_Import(modelname, Npos=Npos)
