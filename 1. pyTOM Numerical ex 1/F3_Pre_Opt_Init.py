@@ -1,6 +1,6 @@
 """
-F3_Pre_Opt_Init.py — Numerical Example 1 (IPM motor benchmark)
-==================================================================
+F3_Pre_Opt_Init.py
+==================
 
 Optimization-side pre-processing for Example 1.
 
@@ -31,10 +31,13 @@ def F3_Pre_Opt_Init(inputs, fem):
     # -------------------------------------------------------
     # Design / non-design separation
     # -------------------------------------------------------
+    # Non-design domains (IPM): air(1), coils(3,4,6), iron rotor(5), PM(7,8).
+    # Only domain id 2 (Design) is treated as design here, though the IPM
+    # example does not actually run optimization.
     nd_values   = np.array([1, 3, 4, 5, 6, 7, 8])
-    nd_ele      = np.where(np.isin(IX[:, 3], nd_values))[0]
-    opt["dof_nd"] = np.unique(IX[nd_ele, 0:3].flatten())
-    opt["dof_dd"] = np.setdiff1d(np.arange(1, nn + 1), opt["dof_nd"])
+    nd_ele      = np.where(np.isin(IX[:, 3], nd_values))[0]                         # non-design elements
+    opt["dof_nd"] = np.unique(IX[nd_ele, 0:3].flatten())                            # non-design nodes (1-based)
+    opt["dof_dd"] = np.setdiff1d(np.arange(1, nn + 1), opt["dof_nd"])   # design nodes
     opt["nn_dd"]  = opt["dof_dd"].shape[0]
 
     dd_ele         = 2
@@ -98,8 +101,10 @@ def F3_Pre_Opt_Init(inputs, fem):
     c_n = np.column_stack([x2 - x1, x0 - x2, x1 - x0])
     inv4A = 1.0 / (4.0 * Ae)
 
+    # Filter radius R = rmin/(2 sqrt(3)) (Lazarov & Sigmund 2011); store R^2
     Kd_scale = (inputs["rmin"] / (2.0 * np.sqrt(3.0))) ** 2
 
+    # Helmholtz filter -- Eq. (18):  (K_d + K_m) phi_tilde = K_m phi
     # Diffusion part of Helmholtz filter:
     Se_diff = Kd_scale * (
         np.einsum('ei,ej->eij', c_n, c_n) + np.einsum('ei,ej->eij', b_n, b_n)

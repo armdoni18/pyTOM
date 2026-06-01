@@ -1,6 +1,6 @@
 """
-F1_Pre_Mesh_Import.py — Numerical Example 1 (IPM motor benchmark)
-==================================================================
+F1_Pre_Mesh_Import.py
+=====================
 
 Gmsh mesh parser specialized for the one-quarter IPM motor of Section 5.1 (Fig. 3).
 
@@ -45,6 +45,7 @@ def F1_Pre_Mesh_Import(modelname: str, Npos: int = 1):
         s = lines[i].strip()
 
         # ---------- PhysicalNames ----------
+        # Map each physical-group NAME to its integer tag
         if s == "$PhysicalNames":
             i += 1
             nphys = int(lines[i])
@@ -52,8 +53,8 @@ def F1_Pre_Mesh_Import(modelname: str, Npos: int = 1):
                 i += 1
                 line = lines[i]
                 if '"' in line:
-                    name = line.split('"')[1]
-                    tag  = int(line.split()[1])
+                    name = line.split('"')[1]        # quoted physical name
+                    tag  = int(line.split()[1])      # its integer tag
                     if name in phys_tags:
                         phys_tags[name].append(tag)
             i += 1
@@ -136,9 +137,9 @@ def F1_Pre_Mesh_Import(modelname: str, Npos: int = 1):
                     i += 1
                     parts = list(map(int, lines[i].split()))
 
-                    if etype == 2:  # CST triangle
-                        t_tri.append([parts[1], parts[2], parts[3], dom])
-                    # ignore quads (IPM motor mesh expected to be all-tri)
+                    if etype == 2:                   # 3-node triangle
+                        t_tri.append([parts[1], parts[2], parts[3], dom])   # nodes + domain id
+                    # IPM motor mesh is all-tri, so quads are ignored
 
         else:
             i += 1
@@ -177,6 +178,7 @@ def _get_domain_id(entityTag, domain_entities):
 
 
 def _fix_ccw(F, X):
+    """Reorder each triangle to counter-clockwise (positive signed area)."""
     F  = F.copy()
     n1 = F[:, 0] - 1
     n2 = F[:, 1] - 1
@@ -186,7 +188,7 @@ def _fix_ccw(F, X):
     x2, y2 = X[n2, 0], X[n2, 1]
     x3, y3 = X[n3, 0], X[n3, 1]
 
-    A    = (x2 - x1) * (y3 - y1) - (y2 - y1) * (x3 - x1)
-    flip = A < 0
-    F[flip, 1], F[flip, 2] = F[flip, 2], F[flip, 1].copy()
+    A    = (x2 - x1) * (y3 - y1) - (y2 - y1) * (x3 - x1)     # 2 * signed area
+    flip = A < 0                                             # clockwise triangles
+    F[flip, 1], F[flip, 2] = F[flip, 2], F[flip, 1].copy()   # swap to CCW
     return F

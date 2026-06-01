@@ -1,71 +1,98 @@
 """
-F5_Main_Comp_Flux.py — Numerical Example 1 (IPM motor benchmark)
-==================================================================
+F5_Main_Comp_Flux.py
+====================
 
-Element-wise computation of B = curl A for the IPM motor of Section 5.1.
+Element-wise computation of the magnetic flux density B = curl A
+from the nodal magnetic vector potential.
 
-Same algorithmic role as the Example 3 version (``3. pyTOM Numerical ex 3/F5_Main_Comp_Flux.py``), where the full module documentation is provided.
-Used inside the Newton-Raphson iteration to evaluate the field-dependent reluctivity, and after convergence for visualization.
+Theory link
+-----------
+The relation B = curl A underlies the field-dependent reluctivity
+in Eq. (3) and the Maxwell stress tensor in Eq. (7). In 2D
+magnetostatics the vector potential A has only a z-component A_z,
+so the flux density has only in-plane components:
+
+    B_x =  d A_z / d y
+    B_y = - d A_z / d x
+
+For linear (constant-strain) triangular elements the gradients are
+piecewise-constant and can be computed in closed form from the
+nodal coordinates and the element area, using the shape-function
+gradient coefficients (b_i, c_i) defined in F2_Pre_FEM_Init.
+
+Usage
+-----
+Called inside the Newton-Raphson loop (in the main driver script)
+to evaluate B from the previous iterate so that the reluctivity
+nu(|B|) can be updated, and again once after convergence to
+provide B for the force evaluation (F7) and the sensitivity
+computation (F8).
 """
 
 import numpy as np
 
 def F5_Main_Comp_Flux(fem):
+    """
+    Compute the element-wise magnetic flux density from nodal A.
 
-    IX = fem["IX"]
-    X  = fem["X"]
-    A  = fem["A"]
-    Ae = fem["Ae"]
-    ne = fem["ne"]
-    nn = fem["nn"]
+    Parameters
+    ----------
+    fem : dict
+        Finite-element data structure. Must contain:
+            "IX"  : (ne, >=4) element connectivity (cols 0-2 are
+                    one-based node indices, col 3 is domain ID).
+            "X"   : (nn, 2)  nodal coordinates.
+            "A"   : (ndof,)  current vector potential.
+            "Ae"  : (ne,)    element areas.
+            "ne"  : int      number of elements.
 
-    i = IX[:, 0] - 1
-    j = IX[:, 1] - 1
-    k = IX[:, 2] - 1
+    Returns
+    -------
+    fem : dict
+        Same dict with three new entries written in place:
+            "Bx" : (ne,) x-component of B per element
+            "By" : (ne,) y-component of B per element
+            "B"  : (ne,) magnitude |B| per element
+    """
 
-    xi = X[i, 0]; yi = X[i, 1]
-    xj = X[j, 0]; yj = X[j, 1]
-    xk = X[k, 0]; yk = X[k, 1]
+# Unpack the finite-element data needed for the curl evaluation
+    IX = fem["IX"]                       # element connectivity (ne, >=4)
+    X  = fem["X"]                        # nodal coordinates (nn, 2)
+    A  = fem["A"]                        # current nodal vector potential (ndof,)
+    Ae = fem["Ae"]                       # element areas (ne,)
+    ne = fem["ne"]                       # number of elements
 
-    bi = yj - yk;  ci = xk - xj
-    bj = yk - yi;  cj = xi - xk
-    bk = yi - yj;  ck = xj - xi
+# Element node indices (Gmsh 1-based -> 0-based)
+    i = IX[:, 0] - 1                     # 1st node of each triangle
+    j = IX[:, 1] - 1                     # 2nd node
+    k = IX[:, 2] - 1                     # 3rd node
 
+# Nodal coordinates of the three triangle vertices
+    xi = X[i, 0]; yi = X[i, 1]           # vertex i
+    xj = X[j, 0]; yj = X[j, 1]           # vertex j
+    xk = X[k, 0]; yk = X[k, 1]           # vertex k
+
+# Shape-function gradient coefficients (same b_i, c_i as F2)
+    #   b_i = y_j - y_k   -> enters d N_i / d x
+    #   c_i = x_k - x_j   -> enters d N_i / d y
+    bi = yj - yk;  ci = xk - xj          # node i
+    bj = yk - yi;  cj = xi - xk          # node j
+    bk = yi - yj;  ck = xj - xi          # node k
+
+# Nodal vector-potential values for each element
     Ai = A[i]; Aj = A[j]; Ak = A[k]
+    inv2A = 1.0 / (2.0 * Ae)             # 1/(2 A_e) per element
 
-    inv2A = 1.0 / (2.0 * Ae)
-
-    Bx = inv2A * ( ci * Ai + cj * Aj + ck * Ak)
+# Flux density B = curl A  (piecewise-constant on linear triangles)
+    #   B_x =  dA_z/dy = (c_i A_i + c_j A_j + c_k A_k)/(2 A_e)
+    #   B_y = -dA_z/dx = -(b_i A_i + b_j A_j + b_k A_k)/(2 A_e)
+    Bx = inv2A * (ci * Ai + cj * Aj + ck * Ak)
     By = inv2A * (-bi * Ai - bj * Aj - bk * Ak)
-    B  = np.sqrt(Bx ** 2 + By ** 2)
+    B  = np.sqrt(Bx**2 + By**2)          # field magnitude |B|
 
-    fem["Bx"] = Bx
+    fem["Bx"] = Bx                       # store for F6 / F7 / F8
     fem["By"] = By
     fem["B"]  = B
-
-    # ---- Nodal averaging ----
-    Bx_node = np.zeros(nn, dtype=float)
-    By_node = np.zeros(nn, dtype=float)
-    weight  = np.zeros(nn, dtype=float)
-
-    nodes = IX[:, 0:3] - 1   # (ne, 3)
-
-    # broadcast Bx*Ae over 3 local nodes
-    BxAe = (Bx * Ae)[:, None] * np.ones((1, 3))
-    ByAe = (By * Ae)[:, None] * np.ones((1, 3))
-    AeR  = Ae[:, None] * np.ones((1, 3))
-
-    np.add.at(Bx_node, nodes.reshape(-1), BxAe.reshape(-1))
-    np.add.at(By_node, nodes.reshape(-1), ByAe.reshape(-1))
-    np.add.at(weight,  nodes.reshape(-1), AeR.reshape(-1))
-
-    Bx_node /= (weight + 1e-12)
-    By_node /= (weight + 1e-12)
-    B_node = np.sqrt(Bx_node ** 2 + By_node ** 2)
-
-    fem["Bx_node"] = Bx_node
-    fem["By_node"] = By_node
-    fem["B_node"]  = B_node
 
     print("Magnetic flux density computation Done. ✅")
     return fem

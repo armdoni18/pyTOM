@@ -1,6 +1,6 @@
 """
-F9_Post_Process_Plot.py — Numerical Example 1 (IPM motor benchmark)
-==================================================================
+F9_Post_Process_Plot.py
+=======================
 
 Post-processing and visualization for the IPM motor of Section 5.1.
 Renders the magnetic vector potential contours for the validation comparison against COMSOL (Fig. 3).
@@ -84,13 +84,15 @@ def F9_Post_Process_Plot(fem, opt, fields_pos=None, mst_pos=None,
             IXp  = field["IX"]
             faces_p = IXp[:, 0:3] - 1
 
-            A_values = np.asarray(A_f, dtype=float).reshape(-1)
+            A_values = np.asarray(A_f, dtype=float).reshape(-1)   # nodal A_z values
 
+            # Regular grid for contour plotting (391 x 251 sampling)
             Xq, Yq = np.meshgrid(
                 np.linspace(np.min(Xv), np.max(Xv), 391),
                 np.linspace(np.min(Yv), np.max(Yv), 251)
             )
 
+            # Linear interpolation of the nodal field onto the grid
             Aq = griddata((Xv, Yv), A_values, (Xq, Yq), method="linear")
 
             nan_mask = np.isnan(Aq)

@@ -1,6 +1,6 @@
 """
-F2_Pre_FEM_Init.py — Numerical Example 1 (IPM motor benchmark)
-==================================================================
+F2_Pre_FEM_Init.py
+==================
 
 Finite-element pre-processing for the IPM motor of Section 5.1.
 
@@ -18,11 +18,11 @@ import numpy as np
 def F2_Pre_FEM_Init(inputs, mesh):
 
     fem = {}
-    fem["IX"]   = mesh["IX"]
-    fem["X"]    = mesh["X"]
-    fem["nn"]   = fem["X"].shape[0]
-    fem["ndof"] = fem["nn"]
-    fem["ne"]   = fem["IX"].shape[0]
+    fem["IX"]   = mesh["IX"]                        # element connectivity (ne, >=4)
+    fem["X"]    = mesh["X"]                         # nodal coordinates (nn, 2)
+    fem["nn"]   = fem["X"].shape[0]                 # number of nodes
+    fem["ndof"] = fem["nn"]                         # one DOF (A_z) per node
+    fem["ne"]   = fem["IX"].shape[0]                # number of elements
     fem["edof"] = np.array([fem["IX"][:, 0],
                             fem["IX"][:, 1],
                             fem["IX"][:, 2]], dtype=int).T   # (ne, 3)
@@ -58,12 +58,13 @@ def F2_Pre_FEM_Init(inputs, mesh):
 
     inv4A = 1.0 / (4.0 * Ae)
 
-    # Element stiffness
+    # Reluctivity-free element kernel  K0_e = (b o b + c o c)/(4 A_e)  -- Eq. (21)
+    # Vectorized outer products; nu_e is applied later in F4/F6.
     Se_all = (
         np.einsum('ei,ej->eij', c, c) + np.einsum('ei,ej->eij', b, b)
     ) * inv4A[:, None, None]
 
-    fem["S_S"] = Se_all.reshape(-1)   # (9*ne,)
+    fem["S_S"] = Se_all.reshape(-1)                    # flat (9*ne,) for COO assembly
 
     # -------------------------------------------------------
     # Boundary conditions (IPM motor — circular geometry)
@@ -84,9 +85,10 @@ def F2_Pre_FEM_Init(inputs, mesh):
     outer_ind = np.where(np.abs(r - Rout)  < tol)[0]
     inner_ind = np.where(np.abs(r - Rin)   < tol)[0]
 
+    # Dirichlet boundary conditions: A_z = 0 on the quarter-motor boundary
     bcdof0 = np.unique(np.concatenate([x0_ind, y0_ind, outer_ind, inner_ind])).astype(int)
-    fem["bcdof"] = bcdof0 + 1                     # store as 1-based
-    fem["bcval"] = np.zeros(bcdof0.size, dtype=float)
+    fem["bcdof"] = bcdof0 + 1                     # store as 1-based DOF indices
+    fem["bcval"] = np.zeros(bcdof0.size, dtype=float)         # homogeneous (A_z = 0)
 
     # -------------------------------------------------------
     # Coil excitation  (current source vector)
