@@ -1,0 +1,14 @@
+# pyTOM dependencies
+# Developed and tested with Python 3.14.
+#
+# The version floors below are conservative and known to work. For an exact,
+# fully reproducible environment, replace them with the versions you actually
+# used. You can list those by running, inside your environment:
+#
+#     pip freeze | grep -Ei "numpy|scipy|matplotlib"
+#
+# and pasting the resulting "package==version" lines here.
+
+numpy>=1.21
+scipy>=1.7
+matplotlib>=3.5
