@@ -13,7 +13,7 @@ throughout Section 5 of the manuscript:
     6. Maxwell stress tensor integration path overlay.
 
 The output directory is configurable through the ``out_dir``
-argument so that ``Run_multinpos.py`` can route each N_pos run
+argument so that ``Main_code_Mulpos.py`` can route each N_pos run
 to its own subfolder.
 
 Module is infrastructure: no equation reference.
@@ -148,7 +148,7 @@ def F9_Post_Process_Plot(fem, opt, fields_pos=None, mst_pos=None,
     # --- Design domain ---
     dd_mask   = (domID == 2)
     rho_dd    = erho[dd_mask]
-    solid_idx = rho_dd >= density_thr
+    solid_idx = rho_dd >= density_thr        # design elements rendered as solid material
 
     if np.any(solid_idx):
         ax.tripcolor(Xv, Yv,
@@ -179,15 +179,18 @@ def F9_Post_Process_Plot(fem, opt, fields_pos=None, mst_pos=None,
             IXp  = field["IX"]
             faces_p = IXp[:, 0:3] - 1
 
-            A_values = np.asarray(A_f, dtype=float).reshape(-1)
+            A_values = np.asarray(A_f, dtype=float).reshape(-1)   # nodal A_z values
 
+            # Regular grid for contour plotting (391 x 251 sampling)
             Xq, Yq = np.meshgrid(
                 np.linspace(np.min(Xv), np.max(Xv), 391),
                 np.linspace(np.min(Yv), np.max(Yv), 251)
             )
 
+            # Linear interpolation of the nodal field onto the grid
             Aq = griddata((Xv, Yv), A_values, (Xq, Yq), method="linear")
 
+            # Fill grid points outside the linear hull via nearest-neighbour
             nan_mask = np.isnan(Aq)
             if np.any(nan_mask):
                 Aq[nan_mask] = griddata(

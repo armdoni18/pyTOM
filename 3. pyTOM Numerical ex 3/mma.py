@@ -7,7 +7,7 @@
 ###                                                                                                  ###
 ### The pyTOM framework interacts with it through the `mmasub` function only. Users wishing          ###
 ### to substitute an alternative optimizer can do so by replacing the single `mmasub(...)` call      ###
-### in `Main_code_Mulpos.py` (or in `Run_multinpos.py`); the rest of pyTOM is independent of MMA.    ###
+### ###
 ########################################################################################################
 
 ########################################################################################################
