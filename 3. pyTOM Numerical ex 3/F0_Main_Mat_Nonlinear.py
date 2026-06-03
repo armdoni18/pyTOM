@@ -20,10 +20,10 @@ Convention note
 ---------------
 Although Eq. (3) is written in terms of the reluctivity nu, this
 function returns the **permeability** mu = 1/nu. The conversion
-to reluctivity (and to its derivative through the chain rule
-dnu/dB = -(dmu/dB)/mu^2) is performed in the main driver
-script immediately after this function is called,
-together with the companion module ``F0_Main_Mat_Derivative.py``.
+to reluctivity and to its derivative through the chain rule
+dnu/dB = -(dmu/dB)/mu^2 is performed in the main driver script
+immediately after this function is called, together with the
+companion module ``F0_Main_Mat_Derivative.py``.
 
 Returning mu directly is convenient because (i) the safety bound
 mu >= mu_0 (vacuum permeability) is naturally expressed in terms
@@ -31,17 +31,16 @@ of mu and (ii) it matches the form in which manufacturer B-H data
 is usually provided.
 
 This module is invoked from:
-    - the main driver script (inside the Newton-Raphson loop, to
-      update the field-dependent reluctivity)
-    - F8_Main_Comp_Sens.py (to evaluate nu_iron at the converged
-      field for SIMP sensitivity)
+  - the main driver script inside the Newton-Raphson loop, to
+    update the field-dependent reluctivity;
+  - ``F8_Main_Comp_Sens.py`` to evaluate nu_iron at the converged
+    field for SIMP sensitivity.
 """
 
 import numpy as np
 
 def F0_Main_Mat_Nonlinear(B):
-    """
-    Evaluate the Brauer saturation model.
+    """Evaluate the nonlinear permeability mu(B) for the Brauer model.
 
     Parameters
     ----------
@@ -51,23 +50,25 @@ def F0_Main_Mat_Nonlinear(B):
     Returns
     -------
     mu : ndarray, shape (ne,)
-        Element-wise magnetic permeability mu = 1/nu, where nu is
-        the reluctivity of Eq. (3). Lower-bounded to mu_0
-        (vacuum permeability) to prevent unphysical values.
+        Element-wise nonlinear permeability. The returned value is
+        bounded below by mu_0 to avoid nonphysical values below the
+        vacuum permeability.
     """
     B = np.asarray(B, dtype=float)
+
+    # Vacuum permeability.
     mu0 = 4.0 * np.pi * 1e-7
 
     # Brauer coefficients from curve-fit to Fig. 1 of the manuscript
-    a, b, c = 49.4, 1.46, 520.6              # fitted Brauer coefficients
+    a, b, c = 49.4, 1.46, 520.6                         # fitted Brauer coefficients
 
-    # Overflow guard: exp(z) overflows for z >= 709 in float64
-    z = np.clip(b * (B ** 2), 0.0, 700.0)    # clamp the exponent argument
-    expterm = np.exp(z)                       # exp(b |B|^2)
+    # Overflow guard for exp(b*B^2).
+    z = np.clip(b * (B ** 2), 0.0, 700.0)  # clamp the exponent argument
+    expterm = np.exp(z)                                 # exp(b |B|^2)
 
-    # Eq. (3) inverted: mu = 1 / (a*exp(b*B^2) + c)
-    mu_raw = 1.0 / (a * expterm + c)          # mu = 1/nu, nu = a exp(b|B|^2)+c
+    # Brauer model permeability, mu = 1/(a*exp(b*B^2) + c) (inverse of Eq. (3))
+    mu_raw = 1.0 / (a * expterm + c)                    # mu = 1/nu, nu = a exp(b|B|^2)+c
 
     # Safety bound: permeability must not fall below vacuum value
-    mu = np.maximum(mu_raw, mu0)              # enforce mu >= mu0
+    mu = np.maximum(mu_raw, mu0)                        # enforce mu >= mu0
     return mu
