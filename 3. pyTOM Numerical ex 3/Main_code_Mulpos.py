@@ -2,38 +2,35 @@
 Main_code_Mulpos.py
 ===================
 
-main driver script for Numerical Example 3: topology
-optimization of a magnetic actuator with multi-position evaluation
-of the magnetic force (Section 5.3 of the manuscript, Figs. 7-9).
+This is the main driver script for Numerical Example 3 (multi-position):
+topology optimization of a magnetic actuator with the BRAUER
+saturation model for the iron domain, considering the multi-position
+evaluation of the magnetic force (Section 5.3 of the manuscript, Figs. 7-9).
 
-This is the sole driver of Example 3. Because the example compares
-the optimized design across several plunger-stroke discretizations
-(N_pos = 1, 11, 21), the topology-optimization procedure is executed
-separately for each entry of ``NPOS_LIST`` within a single Python session.
-Each run writes to its own ``Results/Npos_<n>/`` folder, and the
-comparative force-profile plot ``Comparison_Force_Profile.png``
-(Fig. 9) is produced at the end by ``plot_comparison``.
+The driver contains the complete workflow implemented in pyTOM,
+including:
+  - the outer topology-optimization loop,
+  - the multi-position loop over N_pos plunger configurations,
+  - the Newton-Raphson iteration on the nonlinear magnetic field.
 
-The body of ``Main_code_Mulpos`` performs the same outer
-topology-optimization loop and the same Newton-Raphson inner solve
-as ``Main_code_Ex2_Nonlinear.py`` (Example 2, nonlinear case); the
-only structural addition is the multi-position loop over the
-N_pos plunger configurations, whose per-position forces and
-sensitivities are averaged according to Eqs. (15) and (22) before
-each MMA design update.
+For each selected plunger-stroke discretization (N_pos = 1, 11, 21),
+the topology-optimization procedure is executed separately for each
+entry of ``NPOS_LIST`` within a single Python session. For each TO iteration,
+the design is updated through filtering (Eq. (18)), projection (Eq. (19)),
+and SIMP with the field-dependent nu_iron(|B|) of Eq. (20). The magnetic
+field is obtained by Newton-Raphson iteration on Eqs. (4)-(6) for every plunger
+position, using the consistent tangent matrix from ``F6_Main_NR_Jacobian``
+and the damped update of Eq. (6) with alpha. The resulting position-wise
+forces and sensitivities are computed by ``F8_Main_Comp_Sens`` and averaged
+according to Eqs. (15) and (22) before each MMA design update. Each run
+writes to its own ``Results/Npos_<n>/`` folder, and the comparative
+force-profile plot ``Comparison_Force_Profile.png`` (Fig. 9) is produced
+at the end by ``plot_comparison``.
 
-Three nested loops are orchestrated for each run:
-
-  1. Outer topology-optimization loop (driven by the MMA optimizer
-     and by the continuation strategy on the projection sharpness
-     beta of Eq. (19)).
-  2. Multi-position loop over N_pos plunger configurations
-     (the design variable is shared across positions).
-  3. Innermost Newton-Raphson loop on the nonlinear magnetostatic
-     problem of Eqs. (4)-(6) for each plunger position.
-
-The implementation follows the workflow of Section 4.1 and
-Fig. 2 of the manuscript. See Appendix A for per-module details.
+The implementation extends ``Main_code_Ex2_Nonlinear.py``
+(Example 2, nonlinear case) by introducing the multi-position loop over
+the N_pos plunger configurations. The workflow follows Section 4.1 and Fig. 2
+of the manuscript; see Appendix A for per-module details.
 
 User settings
 -------------
@@ -54,6 +51,7 @@ from scipy.sparse.linalg import spsolve
 import matplotlib
 matplotlib.use("Agg")
 import matplotlib.pyplot as plt
+
 from mma import mmasub
 from F1_Pre_Mesh_Import     import F1_Pre_Mesh_Import
 from F2_Pre_FEM_Init        import F2_Pre_FEM_Init
@@ -67,17 +65,16 @@ from F9_Post_Process_Plot   import F9_Post_Process_Plot
 from F0_Main_Mat_Nonlinear  import F0_Main_Mat_Nonlinear
 from F0_Main_Mat_Derivative import F0_Main_Mat_Derivative
 
+# =====================================================================
+# USER SETTINGS
+# =====================================================================
 
-# ===================== USER SETTINGS =====================
-MODELNAME = "Example_3_Actuator_MultiPos"   # Gmsh model name (without .msh)
+# --- Model/run settings ---
+MODELNAME = "Example_3_Actuator_MultiPos"     # Gmsh model name (without .msh)
+NPOS_LIST   = [1, 11, 21]                     # selected N_pos values for comparison (Figs. 8, 9)
+RESULTS_DIR = "Results"                       # root output folder; each run writes to Results/Npos_<n>/
 
-# Plunger-position counts to sweep (Figs. 8, 9)
-NPOS_LIST   = [1, 11, 21]
-
-# Output root; each N_pos run writes to Results/Npos_<n>/
-RESULTS_DIR = "Results"
-
-# --- Base input dictionary (deep-copied per run so runs stay independent) ---
+# --- Base input dictionary copied independently for each N_pos run ---
 INPUTS_BASE = {
 
     # --- Optimization / SIMP parameters ---
@@ -85,7 +82,7 @@ INPUTS_BASE = {
     "initdv"   : -0.5,                        # initial (unfiltered) design-variable value
 
     # --- Volume parameters ---
-    "VT"       : 16800,                       # total bounding-box area of the model
+    "VT"       : 16800,                       # total area of the model
     "VND"      : 13200,                       # non-design area  (= VT - VDD)
     "VDD"      : 3600,                        # design-domain area
     "volfrac"  : 0.30,                        # prescribed volume fraction V* (Eq. (13))
@@ -109,18 +106,20 @@ INPUTS_BASE = {
     "bt_fn"    : 20,                          # final beta value (stops the outer TO loop)
 
     # --- Solver / MMA optimizer settings ---
-    "MMA"      : 1000,                        # MMA c-constant (before objective scaling)
+    "MMA"      : 1000,                        # MMA c-constant
     "rmin"     : 10,                          # filter radius r_min (mesh length units, Eq. (18))
     "iterMax"  : 400,                         # maximum number of TO iterations
     "scale"    : 1000,                        # target objective magnitude for MMA scaling
+
+    # --- Permanent magnet settings ---
     "PM"       : {
-        "domIDs": [7],
-        "Br"    : [0.2],
-        "theta" : [180.0]
+        "domIDs": [7],                        # mesh domain IDs assigned to permanent magnets
+        "Br"    : [0.2],                      # remanent flux density B_r [T]
+        "theta" : [180.0]                     # magnetization direction angle [deg]
     }
 }
 
-# Per-N_pos plot styles for the comparison figure
+# --- Per-N_pos plot styles for the comparison figure ---
 STYLE_MAP = {
     1 : {"color": "#378ADD", "linestyle": "-",    "marker": "o", "label": r"$N_{pos}=1$"},
     3 : {"color": "#1D9E75", "linestyle": "--",   "marker": "s", "label": r"$N_{pos}=3$"},
@@ -132,15 +131,15 @@ STYLE_MAP = {
 _FALLBACK_COLORS = ["#E24B4A", "#5DCAA5", "#D4537E", "#639922", "#EF9F27"]
 
 
-# ===================== PER-N_pos DRIVER =====================
+# =====================================================================
+# PER-N_pos DRIVER
+# =====================================================================
 
 def run_single_npos(Npos, inputs_base, modelname, out_dir):
     """Run the full topology-optimization driver for one N_pos value.
-
-    Mirrors ``Main_code_Ex2_Nonlinear.py`` with the multi-position
-    loop activated (Npos plunger configurations per TO iteration).
-    Returns the converged per-position force profile used by
-    ``plot_comparison`` to assemble Fig. 9.
+    The base input dictionary is copied locally so each N_pos run remains
+    independent. The function returns the converged per-position force
+    profile used by ``plot_comparison`` to assemble Fig. 9.
     """
 
     os.makedirs(out_dir, exist_ok=True)
@@ -153,36 +152,42 @@ def run_single_npos(Npos, inputs_base, modelname, out_dir):
     print(f"  Output    : {out_dir}")
     print("=" * 60)
 
-    # ===================== PRE-PROCESSING =====================
-    # Independent copy so concurrent/sequential runs do not share state
+    # =====================================================================
+    # PRE-PROCESSING
+    # =====================================================================
+
+    # --- Copy base inputs for this N_pos run ---
     inputs = copy.deepcopy(inputs_base)
 
-    # === Reluctivity inputs (nu = 1/mu) — consistent with manuscript ===
-    mu0 = inputs["mu0"]
-    inputs["nu_air"]   = 1.0 / (mu0 * inputs["mur_air"])
-    inputs["nu_coil1"] = 1.0 / (mu0 * inputs["mur_coil1"])
-    inputs["nu_coil2"] = 1.0 / (mu0 * inputs["mur_coil2"])
-    inputs["nu_iron"]  = 1.0 / (mu0 * inputs["mur_iron"])
-    inputs["nu_PM"]    = 1.0 / (mu0 * inputs["mur_PM"])
+    # --- Reluctivity inputs ---
+    mu0                = inputs["mu0"]
+    inputs["nu_air"]   = 1.0 / (mu0 * inputs["mur_air"])    # reluctivity of air (nu = 1/(mu0*mur))
+    inputs["nu_coil1"] = 1.0 / (mu0 * inputs["mur_coil1"])  # reluctivity of coil 1
+    inputs["nu_coil2"] = 1.0 / (mu0 * inputs["mur_coil2"])  # reluctivity of coil 2
+    inputs["nu_iron"]  = 1.0 / (mu0 * inputs["mur_iron"])   # linear-reference reluctivity of iron
+    inputs["nu_PM"]    = 1.0 / (mu0 * inputs["mur_PM"])     # reluctivity of the PM region
 
-    # === Load mesh and init FEM/OPT ===
-    mesh, IX_all = F1_Pre_Mesh_Import(modelname, Npos=Npos)
-    fem          = F2_Pre_FEM_Init(inputs, mesh)
-    opt, MMA     = F3_Pre_Opt_Init(inputs, fem)
+    # --- Load mesh and initialize FEM/OPT data ---
+    mesh, IX_all = F1_Pre_Mesh_Import(modelname, Npos=Npos) # import mesh from GMSH (nodes, elements, boundaries)
+    fem          = F2_Pre_FEM_Init(inputs, mesh)            # initialize FEM model (BCs, sources, matrices)
+    opt, MMA     = F3_Pre_Opt_Init(inputs, fem)             # initialize optimization variables (design variable, filters, MMA)
 
+    # --- MMA scaling initialization ---
     MMA["c_input"] = inputs["MMA"]
-    # ===================== SCALING =====================
     opt["mma_scale_initialized"] = False
     opt["mma_obj_scale"] = 1.0
 
     print(f"Pre-Processing Completed ✅  "
           f"({time.strftime('%H:%M:%S', time.gmtime(time.time() - start_time))})")
 
-    # ===================== MAIN PROCESSING =====================
+    # =====================================================================
+    # MAIN PROCESSING
+    # =====================================================================
+
     force_profile_final = None
     saved_iter          = -1
 
-    # Pre-build domain masks (outside loop for speed)
+    # Pre-build domain masks
     ne = fem["ne"]
     IX_base = fem["IX"]
 
@@ -205,12 +210,8 @@ def run_single_npos(Npos, inputs_base, modelname, out_dir):
         # The filtered nodal field opt["fdv"] is then projected by the
         # regularized Heaviside (Eq. (19)) and clipped to [-1, 1]
         # (numerical safeguard; see F3 docstring for the rationale).
-        opt["fdv"]  = spsolve(opt["Kft_sparse"],
-                              sp.csc_matrix.dot(opt["Tft"], opt["nv"]))
-        opt["nrho"] = np.maximum(
-            np.minimum(
-                np.tanh(opt["bt"] * opt["fdv"]) / (2 * np.tanh(opt["bt"])) + 0.5,
-                1), -1)
+        opt["fdv"]  = spsolve(opt["Kft_sparse"], sp.csc_matrix.dot(opt["Tft"], opt["nv"]))
+        opt["nrho"] = np.maximum(np.minimum(np.tanh(opt["bt"] * opt["fdv"]) / (2 * np.tanh(opt["bt"])) + 0.5,1), -1)
         opt["erho"] = opt["Ten"].dot(opt["nrho"])
 
         # ── Multi-position loop ──────────────────────────────────────────────────
@@ -227,7 +228,7 @@ def run_single_npos(Npos, inputs_base, modelname, out_dir):
             fem["IX"][:, 3] = IX_all[j][:, 3]
             IX = fem["IX"]
 
-            # ── nu_e_all initial guess ────────────────────────────────
+            # ── Element reluctivity: initial linear guess ──
             dom = IX[:, 3].astype(int)
             erho_vec = np.asarray(opt["erho"], dtype=float).reshape(-1)
             penal    = inputs["penal"]
@@ -248,11 +249,11 @@ def run_single_npos(Npos, inputs_base, modelname, out_dir):
             nu_e_all[dom == 3] = inputs["nu_coil1"]
             nu_e_all[dom == 4] = inputs["nu_coil2"]
 
-            # PM domains
+            # Permanent-magnet domains
             for pmid in pm_domIDs:
                 nu_e_all[dom == pmid] = inputs["nu_PM"]
 
-            # ── STEP 1: Initial linear solve ─────────────────────────────────────
+            # STEP 1: Linear magnetostatic solve
             fem    = F4_Main_Solve_VecPot(fem, inputs, nu_e_all)
             A_old  = fem["A"].copy()
             T_rhs  = fem["T"].copy()
@@ -276,11 +277,11 @@ def run_single_npos(Npos, inputs_base, modelname, out_dir):
                 A_old[fixdof] = bcval
                 fem["A"]      = A_old
 
-                # STEP 2: Compute B
+                # STEP 2: Compute magnetic flux density B
                 fem = F5_Main_Comp_Flux(fem)
                 B   = fem["B"]
 
-                # STEP 3: Update nu_e_all(B) ──────────────────
+                # STEP 3: Update field-dependent reluctivity nu_e_all(B)
                 dom_cur  = IX[:, 3].astype(int)
                 dnu_dB_e = np.zeros(ne, dtype=float)
 
@@ -328,13 +329,11 @@ def run_single_npos(Npos, inputs_base, modelname, out_dir):
 
                 # STEP 7: Damped Newton update — Eq. (6) with damping
                 #   A^(k+1) = A^(k) + alpha * dA
-                # alpha = 0.2 improves convergence robustness
-                # in saturated regions during optimization.
                 alpha  = 0.2
                 A_new  = A_old + alpha * deltaA
                 A_new[fixdof] = bcval
 
-                # Convergence check
+                # STEP 8: Convergence check
                 errA = (np.linalg.norm(deltaA[freedof]) /
                         (np.linalg.norm(A_new[freedof]) + 1e-12))
                 print(f"     ||ΔA||/||A|| = {errA:.3e}")
@@ -356,7 +355,7 @@ def run_single_npos(Npos, inputs_base, modelname, out_dir):
 
             print("NR loop finished.")
 
-            # ── Force & Sensitivity ──────────────────────────────────────────────
+            # ── Force and sensitivity analysis: nonlinear case ──
             Fx_total, Fy_total, fem = F7_Main_Comp_Force(fem)
             mst_pos[j + 1] = {
                 "mst": fem["mst"].copy(),
@@ -382,7 +381,7 @@ def run_single_npos(Npos, inputs_base, modelname, out_dir):
         dfdx_avg = np.mean(np.hstack(dfdx_pos), axis=1, keepdims=True)
         dgdx_avg = np.mean(np.vstack(dgdx_pos), axis=0, keepdims=True)
 
-        # ===================== SCALING =====================
+        # ── MMA objective scaling ──
         if not opt["mma_scale_initialized"]:
             scale_factor = inputs["scale"] / (abs(f_avg) + 1e-12)
             opt["scale_factor"] = scale_factor
@@ -536,7 +535,6 @@ def plot_comparison(all_results, out_dir):
     plt.close(fig)
 
     print(f"\n✅  Comparison plot saved to: {save_path}")
-
 
 # ===================== ENTRY POINT =====================
 
