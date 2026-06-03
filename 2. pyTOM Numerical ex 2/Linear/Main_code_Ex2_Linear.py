@@ -2,10 +2,10 @@
 Main_code_Ex2_Linear.py
 =======================
 
-Top-level driver script for Numerical Example 2 (linear case):
+This is the main driver script for Numerical Example 2 (linear case):
 topology optimization of the magnetic actuator with a CONSTANT
 reluctivity for the iron domain (no Brauer model), at a fixed
-plunger position (Section 5.2 of the manuscript, Fig. 5(c-d)).
+plunger position (Section 5.2 of the manuscript, Fig. 6(c-d)).
 
 The driver performs the same outer topology-optimization loop as
 ``Main_code_Mulpos.py`` (Example 3) but without:
@@ -14,22 +14,21 @@ The driver performs the same outer topology-optimization loop as
 
 For each TO iteration, the design is updated through filtering
 (Eq. (18)), projection (Eq. (19)), SIMP with constant nu_iron
-(simplified Eq. (20)), and a SINGLE linear magnetostatic solve
-in ``F4_Main_Solve_VecPot``. The sensitivity is then computed by
-``F8_Main_Comp_Sens`` using the linear stiffness matrix as the
+(simplified Eq. (20)), and a single linear magnetostatic solve
+in ``F4_Main_Solve_VecPot``. The sensitivity is then computed
+by ``F8_Main_Comp_Sens`` using the linear stiffness matrix as the
 "Jacobian" (no nonlinearity correction).
 
 See ``3. pyTOM Numerical ex 3/Main_code_Mulpos.py`` for the
-full per-step documentation of the generic TO loop, including
-the choice of the Newton-Raphson damping factor alpha and the
-continuation strategy on beta.
+full per-step documentation of the generic workflow.
 """
 
+import time
 import numpy as np
 import scipy.sparse as sp
 from scipy.sparse.linalg import spsolve
+
 from mma import mmasub
-import time
 from F1_Pre_Mesh_Import   import F1_Pre_Mesh_Import
 from F2_Pre_FEM_Init      import F2_Pre_FEM_Init
 from F3_Pre_Opt_Init      import F3_Pre_Opt_Init
@@ -41,7 +40,11 @@ from F9_Post_Process_Plot import F9_Post_Process_Plot
 
 start_time = time.time()
 
-# ===================== PRE-PROCESSING =====================
+# =====================================================================
+# USER SETTINGS
+# =====================================================================
+
+# --- Model/run settings ---
 modelname = "Example_2_Actuator_Linear"
 Npos = 1   # static single-position problem (no plunger stroke)
 
@@ -52,7 +55,7 @@ inputs["penal"]     = 3                       # SIMP penalization exponent p (Eq
 inputs["initdv"]    = -0.5                    # initial (unfiltered) design-variable value
 
 # --- Volume parameters ---
-inputs["VT"]        = 97500                   # total bounding-box area of the model
+inputs["VT"]        = 97500                   # total area of the model
 inputs["VND"]       = 53500                   # non-design area  (= VT - VDD)
 inputs["VDD"]       = 44000                   # design-domain area
 inputs["volfrac"]   = 0.40                    # prescribed volume fraction V* (Eq. (13))
@@ -76,34 +79,37 @@ inputs["bt_ns"]     = 4                       # number of iterations between bet
 inputs["bt_fn"]     = 1000                    # final beta value (stops the outer TO loop)
 
 # --- Solver / MMA optimizer settings ---
-inputs["MMA"]       = 1000                    # MMA c-constant (before objective scaling)
+inputs["MMA"]       = 1000                    # MMA c-constant
 inputs["rmin"]      = 20                      # filter radius r_min (mesh length units, Eq. (18))
 inputs["iterMax"]   = 400                     # maximum number of TO iterations
 inputs["scale"]     = 100                     # target objective magnitude for MMA scaling
 
-# --- Permanent Magnet ---
+# --- Permanent magnet settings ---
 inputs["PM"] = {
-    "domIDs": [7],
-    "Br":     [0.2],
-    "theta":  [0.0]
+    "domIDs": [7],                            # mesh domain IDs assigned to permanent magnets
+    "Br":     [0.2],                          # remanent flux density B_r [T]
+    "theta":  [0.0]                           # magnetization direction angle [deg]
 }
 
+# =====================================================================
+# PRE-PROCESSING
+# =====================================================================
 
-# === Reluctivity inputs (nu = 1/mu) — LINEAR (constant per material) ===
-mu0      = inputs["mu0"]
-inputs["nu_air"]   = 1.0 / (mu0 * inputs["mur_air"])  # reluctivity of air         (nu = 1/(mu0*mur))
+# --- Reluctivity inputs ---
+mu0                = inputs["mu0"]
+inputs["nu_air"]   = 1.0 / (mu0 * inputs["mur_air"])    # reluctivity of air (nu = 1/(mu0*mur))
 inputs["nu_coil1"] = 1.0 / (mu0 * inputs["mur_coil1"])  # reluctivity of coil 1
 inputs["nu_coil2"] = 1.0 / (mu0 * inputs["mur_coil2"])  # reluctivity of coil 2
-inputs["nu_iron"]  = 1.0 / (mu0 * inputs["mur_iron"])  # linear-reference reluctivity of iron
-inputs["nu_PM"]    = 1.0 / (mu0 * inputs["mur_PM"])  # reluctivity of the PM region
+inputs["nu_iron"]  = 1.0 / (mu0 * inputs["mur_iron"])   # linear-reference reluctivity of iron
+inputs["nu_PM"]    = 1.0 / (mu0 * inputs["mur_PM"])     # reluctivity of the PM region
 
-# === Load mesh and init FEM/OPT ===
-mesh, IX_all = F1_Pre_Mesh_Import(modelname, Npos=Npos)
-fem          = F2_Pre_FEM_Init(inputs, mesh)
-opt, MMA     = F3_Pre_Opt_Init(inputs, fem)
+# --- Load mesh and initialize FEM/OPT data ---
+mesh, IX_all = F1_Pre_Mesh_Import(modelname, Npos=Npos) # import mesh from GMSH (nodes, elements, boundaries)
+fem          = F2_Pre_FEM_Init(inputs, mesh)            # initialize FEM model (BCs, sources, matrices)
+opt, MMA     = F3_Pre_Opt_Init(inputs, fem)             # initialize optimization variables (design variable, filters, MMA)
 
+# --- MMA scaling initialization ---
 MMA["c_input"] = inputs["MMA"]
-# ===================== SCALING =====================
 opt["mma_scale_initialized"] = False
 opt["mma_obj_scale"] = 1.0
 
@@ -112,11 +118,14 @@ elapsed_pre = time.time() - start_time
 print("Elapsed time for Pre-Processing: %s" %
       time.strftime('%H:%M:%S', time.gmtime(elapsed_pre)))
 
-# ===================== MAIN PROCESSING =====================
+# =====================================================================
+# MAIN PROCESSING
+# =====================================================================
+
 force_profile_final = None
 saved_iter          = -1
 
-# Pre-build domain masks (outside loop for speed)
+# Pre-build domain masks
 ne = fem["ne"]
 IX_base = fem["IX"]
 
@@ -125,16 +134,12 @@ pm_domIDs = set(inputs["PM"]["domIDs"])
 
 while (opt["bt"] < inputs["bt_fn"]) and (opt["iter"] <= inputs["iterMax"]):
 
-    # ── Filter + Projection ──────────────────────────────────────────────────
-    opt["fdv"]  = spsolve(opt["Kft_sparse"],
-                          sp.csc_matrix.dot(opt["Tft"], opt["nv"]))
-    opt["nrho"] = np.maximum(
-        np.minimum(
-            np.tanh(opt["bt"] * opt["fdv"]) / (2 * np.tanh(opt["bt"])) + 0.5,
-            1), -1)
+    # ── Filter + Projection ──
+    opt["fdv"]  = spsolve(opt["Kft_sparse"], sp.csc_matrix.dot(opt["Tft"], opt["nv"]))
+    opt["nrho"] = np.maximum(np.minimum(np.tanh(opt["bt"] * opt["fdv"]) / (2 * np.tanh(opt["bt"])) + 0.5,1), -1)
     opt["erho"] = opt["Ten"].dot(opt["nrho"])
 
-    # ── Multi-position loop (Npos=1 for Example 2) ──────────────────────────
+    # ── Position loop (Npos=1 for Example 2) ──
     plot_positions = [0]
     fields_pos  = {}
     f_pos       = []
@@ -149,20 +154,20 @@ while (opt["bt"] < inputs["bt_fn"]) and (opt["iter"] <= inputs["iterMax"]):
         fem["IX"][:, 3] = IX_all[j][:, 3]
         IX = fem["IX"]
 
-        # ── nu_e_all (LINEAR — constant per material) ─────────────
+        # ── Element reluctivity: initial linear guess ──
         dom = IX[:, 3].astype(int)
         erho_vec = np.asarray(opt["erho"], dtype=float).reshape(-1)
         penal    = inputs["penal"]
 
         nu_e_all = np.full(ne, inputs["nu_air"])
 
-        # Design domain (dom==2): SIMP with constant nu_iron
+        # Design domain (dom==2): SIMP interpolation
         dd_mask = (dom == 2)
         nu_e_all[dd_mask] = (inputs["nu_air"] +
                               (inputs["nu_iron"] - inputs["nu_air"]) *
                               erho_vec[dd_mask] ** penal)
 
-        # Fixed iron domains (NonDesign iron = 5; FixIron = 6)
+        # Fixed iron domains
         iron_mask = (dom == 5) | (dom == 6)
         nu_e_all[iron_mask] = inputs["nu_iron"]
 
@@ -170,14 +175,14 @@ while (opt["bt"] < inputs["bt_fn"]) and (opt["iter"] <= inputs["iterMax"]):
         nu_e_all[dom == 3] = inputs["nu_coil1"]
         nu_e_all[dom == 4] = inputs["nu_coil2"]
 
-        # PM domains
+        # Permanent-magnet domains
         for pmid in pm_domIDs:
             nu_e_all[dom == pmid] = inputs["nu_PM"]
 
-        # ── STEP 1: Linear solve (single solve, no NR) ───────────────────────
+        # STEP 1: Linear magnetostatic solve
         fem = F4_Main_Solve_VecPot(fem, inputs, nu_e_all)
 
-        # ── STEP 2: Compute B ────────────────────────────────────────────────
+        # STEP 2: Compute magnetic flux density B
         fem = F5_Main_Comp_Flux(fem)
 
         if j in plot_positions:
@@ -187,7 +192,7 @@ while (opt["bt"] < inputs["bt_fn"]) and (opt["iter"] <= inputs["iterMax"]):
                 "IX": fem["IX"].copy()
             }
 
-        # ── Force & Sensitivity (LINEAR) ─────────────────────────────────────
+        # ── Force and sensitivity analysis: linear case ──
         Fx_total, Fy_total, fem = F7_Main_Comp_Force(fem)
         mst_pos[j + 1] = {
             "mst": fem["mst"].copy(),
@@ -201,7 +206,8 @@ while (opt["bt"] < inputs["bt_fn"]) and (opt["iter"] <= inputs["iterMax"]):
         dfdx_pos.append(np.asarray(dfdx).reshape(-1, 1))
         dgdx_pos.append(np.asarray(dgdx).reshape(1, -1))
 
-    # ── Averaging across positions ───────────────────────────────────────────
+    # ── Averaging across positions (Eqs. (15), (22)) ────────────────────────
+    # F_avg = (1/N_pos) * sum_i F^i and similarly for dF/dphi.
     if ((opt["iter"] == inputs["iterMax"]) or
             (opt["deltaf"] < inputs["conv"])) and (opt["iter"] > saved_iter):
         force_profile_final = f_pos.copy()
@@ -212,7 +218,7 @@ while (opt["bt"] < inputs["bt_fn"]) and (opt["iter"] <= inputs["iterMax"]):
     dfdx_avg = np.mean(np.hstack(dfdx_pos), axis=1, keepdims=True)
     dgdx_avg = np.mean(np.vstack(dgdx_pos), axis=0, keepdims=True)
 
-    # ===================== SCALING =====================
+    # ── MMA objective scaling ──
     if not opt["mma_scale_initialized"]:
         scale_factor = inputs["scale"] / (abs(f_avg) + 1e-12)
         opt["scale_factor"] = scale_factor
@@ -264,7 +270,10 @@ while (opt["bt"] < inputs["bt_fn"]) and (opt["iter"] <= inputs["iterMax"]):
     opt["dv"]       = opt["dvnew"]
     opt["nv"][opt["dof_dd"] - 1] = opt["dv"]
 
-    # ── Continuation ─────────────────────────────────────────────────────────
+    # ── Continuation strategy on projection sharpness beta ──────────────────
+    # After convergence, beta is increased every `bt_ns`
+    # iterations until `bt_fn` is reached, progressively
+    # sharpening the Heaviside projection (Eq. (19)).
     if (opt["cont_sw"] == 0) and (opt["deltaf"] < inputs["conv"]):
         opt["cont_sw"]   = 1
         opt["cont_iter"] = 0
