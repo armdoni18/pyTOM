@@ -2,18 +2,23 @@
 F1_Pre_Mesh_Import.py
 =====================
 
-Gmsh mesh parser for the magnetic-actuator examples (Examples 2
-and 3). The same parser serves the single-position actuator
-(Npos = 1) and the multi-position actuator (Npos > 1); the
-plunger-stroke handling below is exercised only when Npos > 1.
+Gmsh mesh parser for the magnetic-actuator examples: Numerical
+Example 2 (linear and nonlinear single-position cases) and
+Numerical Example 3 (multi-position case).
 
-Reads a Gmsh ``.msh`` file (format 4.1) and extracts the node
-coordinates, the triangular element connectivity, and the
-physical-group domain identifiers. The output ``IX`` matrix has
-shape (ne, 4) where columns 0-2 are one-based node indices of
+The same parser serves the single-position actuator (Npos = 1)
+and the multi-position actuator (Npos > 1). The plunger-stroke
+domain-mapping strategy is only activated when Npos > 1.
+
+The parser reads a Gmsh ``.msh`` file, extracts the node
+coordinates, triangular and quadrilateral element connectivity,
+and physical-group domain identifiers. Quadrilateral elements
+are split into two triangles so that the downstream FEM modules
+operate on triangular elements only. The output ``IX`` matrix has
+shape (ne, 4), where columns 0-2 are one-based node indices of
 each triangle and column 3 is the integer domain identifier.
 
-Domain identifiers used in this example:
+Domain identifiers used in the actuator examples:
     1 = Air
     2 = Design (yoke design domain)
     3 = Coil1
@@ -23,52 +28,74 @@ Domain identifiers used in this example:
     7 = PM1 (permanent magnet)
 
 For the multi-position case (Npos > 1), this function additionally
-returns ``IX_all``: a list of ``Npos`` alternative column-3 arrays,
-one per plunger position. The driver swaps column 3 of ``IX``
-across positions instead of physically translating the mesh; this
-"domain-mapping" strategy preserves mesh quality and avoids costly
-remeshing operations during the multi-position evaluation.
+returns ``IX_all``: a list of ``Npos`` alternative connectivity
+tables. The driver swaps column 3 of ``IX`` across positions
+instead of physically translating the mesh. This domain-mapping
+strategy preserves mesh quality and avoids remeshing during the
+multi-position force evaluation.
 
 Module is infrastructure: no equation reference.
 """
 
 import numpy as np
 
-
 def F1_Pre_Mesh_Import(modelname: str, Npos: int = 1):
+    """Read the actuator Gmsh mesh and return pyTOM mesh structures.
 
-# Open the Gmsh .msh file (format 4.1) and read all lines into memory
+    Parameters
+    ----------
+    modelname : str
+        Gmsh model name without the ``.msh`` extension.
+    Npos : int, optional
+        Number of plunger positions. ``Npos=1`` gives the
+        single-position actuator, while ``Npos>1`` activates the
+        domain-mapping strategy.
+
+    Returns
+    -------
+    mesh : dict
+        Mesh dictionary containing ``X`` and ``IX``.
+    IX_all : list of ndarray
+        Position-wise connectivity tables. For ``Npos=1``, this
+        list contains one copy of ``IX``. For ``Npos>1``, column 3
+        is remapped to represent different plunger positions.
+    """
+
+    # Open the Gmsh .msh file and read all lines into memory.
     fname = f"{modelname}.msh"
     with open(fname, "r") as f:
         lines = f.readlines()
 
     # =====================
-    # INITIAL
+    # INITIALIZE STORAGE
     # =====================
-# Physical-group name -> list of Gmsh physical tags (filled from $PhysicalNames)
+
+    # Physical-group name -> list of Gmsh physical tags.
     phys_tags = {
         "Air": [], "Design": [], "Coil1": [], "Coil2": [],
         "NonDesign": [], "FixIron": [], "PM1": []
     }
-# Physical-group name -> list of geometric surface entity tags (filled from $Entities)
+
+    # Physical-group name -> list of geometric surface entity tags.
     domain_entities = {k: [] for k in phys_tags.keys()}
 
     t_tri  = []                          # collected triangles  [n1,n2,n3,domain]
     q_quad = []                          # collected quads      [n1,n2,n3,n4,domain]
-    p      = None                        # nodal coordinate array (filled in $Nodes)
+    p      = None                        # nodal coordinate array filled from $Nodes
 
     i      = 0                           # running line cursor
     nlines = len(lines)
 
     # =====================
-    # PARSING
+    # PARSE GMSH SECTIONS
     # =====================
-# Single forward pass over the file; each $Section is handled in its own branch
+
     while i < nlines:
         s = lines[i].strip()
 
+        # ---------- PhysicalNames ----------
+        # Map each physical-group name to its integer physical tag.
         if s == "$PhysicalNames":
-        # Map each physical-group NAME to its integer tag
             i += 1
             nphys = int(lines[i])
             for _ in range(nphys):
@@ -76,28 +103,30 @@ def F1_Pre_Mesh_Import(modelname: str, Npos: int = 1):
                 line = lines[i]
                 if '"' in line:
                     name = line.split('"')[1]        # quoted physical name
-                    tag  = int(line.split()[1])      # its integer tag
+                    tag  = int(line.split()[1])      # integer physical tag
                     if name in phys_tags:
                         phys_tags[name].append(tag)
             i += 1
 
+        # ---------- Entities ----------
+        # Map each 2D surface entity to the physical group it belongs to.
         elif s == "$Entities":
-        # Map each 2D surface ENTITY to the physical group it belongs to
             i += 1
             header      = list(map(int, lines[i].split()))
             num_surfaces = header[2]                 # header = [nPts,nCurves,nSurf,nVol]
 
-            for _ in range(header[0] + header[1]):   # skip point + curve entities
+            # Skip point and curve entities.
+            for _ in range(header[0] + header[1]):
                 i += 1
 
+            # Read surface entities and their attached physical tags.
             for _ in range(num_surfaces):
                 i += 1
                 parts    = lines[i].split()
                 etag     = int(parts[0])             # surface entity tag
-                numPhys  = int(parts[7])             # number of physical tags attached
+                numPhys  = int(parts[7])             # number of physical tags
                 physIDs  = list(map(int, parts[8:8+numPhys]))
 
-                # Attach this surface entity to every matching physical group
                 for name, tags in phys_tags.items():
                     if any(pid in tags for pid in physIDs):
                         domain_entities[name].append(etag)
@@ -106,8 +135,9 @@ def F1_Pre_Mesh_Import(modelname: str, Npos: int = 1):
                 i += 1
             i += 1
 
+        # ---------- Nodes ----------
+        # Read node coordinates; only the in-plane (x, y) part is kept.
         elif s == "$Nodes":
-        # Read node coordinates; only the in-plane (x, y) part is kept
             i += 1
             header      = list(map(int, lines[i].split()))
             total_nodes = header[1]
@@ -118,13 +148,13 @@ def F1_Pre_Mesh_Import(modelname: str, Npos: int = 1):
                 b      = list(map(int, lines[i].split()))
                 nblock = b[3]                        # number of nodes in this block
 
-                # First the block's node tags ...
+                # First read node tags.
                 node_tags = []
                 while len(node_tags) < nblock:
                     i += 1
                     node_tags += list(map(int, lines[i].split()))
 
-                # ... then their (x, y, z) coordinates
+                # Then read the corresponding (x, y, z) coordinates.
                 coords = []
                 while len(coords) < 3 * nblock:
                     i += 1
@@ -136,8 +166,9 @@ def F1_Pre_Mesh_Import(modelname: str, Npos: int = 1):
 
             i += 1
 
-        elif s == "$Elements":
+        # ---------- Elements ----------
         # Read 2D elements (triangles / quads) and tag each with its domain id
+        elif s == "$Elements":
             i += 1
             header = list(map(int, lines[i].split()))
 
@@ -157,16 +188,17 @@ def F1_Pre_Mesh_Import(modelname: str, Npos: int = 1):
                     parts = list(map(int, lines[i].split()))
                     if etype == 2:                   # 3-node triangle
                         t_tri.append([parts[1], parts[2], parts[3], dom])
-                    elif etype == 3:                 # 4-node quad
+                    elif etype == 3:                 # 4-node quadrilateral
                         q_quad.append([parts[1], parts[2], parts[3], parts[4], dom])
 
         else:
             i += 1
 
     # =====================
-    # PROCESS
+    # BUILD CONNECTIVITY
     # =====================
-# Convert collected lists to arrays; split quads into triangles
+
+    # Convert collected lists to arrays and split quads into triangles.
     t_tri  = np.array(t_tri,  dtype=int) if t_tri  else None
     q_quad = np.array(q_quad, dtype=int) if q_quad else None
 
@@ -181,7 +213,7 @@ def F1_Pre_Mesh_Import(modelname: str, Npos: int = 1):
         t_tri[:, 0:3] = _fix_ccw(t_tri[:, 0:3], p)                   # enforce CCW ordering
         IX_tri = t_tri
 
-# Stack quad-derived and native triangles into a single connectivity table
+    # Stack quad-derived and native triangles into one connectivity table.
     IX_parts = []
     if IX_quad is not None:
         IX_parts.append(IX_quad)
@@ -190,12 +222,15 @@ def F1_Pre_Mesh_Import(modelname: str, Npos: int = 1):
 
     IX   = np.vstack(IX_parts) if IX_parts else np.zeros((0, 4), int)
     mesh = {"X": p, "IX": IX}
-    mesh = _sort_elements_structured_like_quad(mesh)    # deterministic element ordering
+
+    # Deterministic element ordering for reproducible indexing.
+    mesh = _sort_elements_structured_like_quad(mesh)
 
     # =====================
-    # MULTI POSITION
+    # BUILD POSITION-WISE CONNECTIVITY
     # =====================
-# Build one connectivity table per plunger position (domain-mapping strategy)
+
+    # Build one connectivity table per plunger position (domain-mapping strategy)
     IX_all = []
 
     if Npos > 1 and IX_quad is not None:
@@ -219,7 +254,7 @@ def F1_Pre_Mesh_Import(modelname: str, Npos: int = 1):
 
 
 # =====================
-# HELPERS
+# HELPER FUNCTIONS
 # =====================
 
 def _get_domain_id(entityTag, domain_entities):
@@ -246,7 +281,7 @@ def _simple_quad_to_tri(IXq, domq):
 
 
 def _fix_ccw(F, X):
-    """Reorder each triangle's nodes to counter-clockwise (positive signed area)."""
+    """Reorder each triangle's nodes to counter-clockwise ordering."""
     F  = F.copy()
     n1 = F[:, 0] - 1
     n2 = F[:, 1] - 1
@@ -256,8 +291,8 @@ def _fix_ccw(F, X):
     x2, y2 = X[n2, 0], X[n2, 1]
     x3, y3 = X[n3, 0], X[n3, 1]
 
-    A    = (x2 - x1) * (y3 - y1) - (y2 - y1) * (x3 - x1)  # 2 * signed area
-    flip = A < 0                                          # clockwise triangles
+    A    = (x2 - x1) * (y3 - y1) - (y2 - y1) * (x3 - x1)    # 2 * signed area
+    flip = A < 0                                            # clockwise triangles
     F[flip, 1], F[flip, 2] = F[flip, 2], F[flip, 1].copy()  # swap two nodes -> CCW
     return F
 
@@ -265,9 +300,10 @@ def _fix_ccw(F, X):
 def _sort_elements_structured_like_quad(mesh):
     """Sort triangles into a deterministic, quad-block-aligned order.
 
-    Triangles come in pairs (two per original quad). The pairs are ordered
-    by their shared quad centroid via a lexicographic (y, then x) sort so
-    that downstream indexing is reproducible across runs and positions.
+    Triangles come in pairs when they originate from quadrilateral
+    elements. The pairs are ordered by their shared quad centroid using
+    a lexicographic sort in (y, then x), making downstream indexing
+    reproducible across runs and positions.
     """
     X  = mesh["X"]
     IX = mesh["IX"]
@@ -290,7 +326,7 @@ def _sort_elements_structured_like_quad(mesh):
     tri2 = np.arange(1, ne_pair, 2)      # second triangle of each pair
     Nq   = ne_pair // 2
 
-    # Quad centroid = mean of the two triangle centroids
+    # Quad centroid = mean of the two triangle centroids.
     nodes1 = IX_main[tri1, 0:3] - 1
     nodes2 = IX_main[tri2, 0:3] - 1
     Cx = (np.mean(X[nodes1, 0], axis=1) + np.mean(X[nodes2, 0], axis=1)) / 2.0
@@ -298,7 +334,7 @@ def _sort_elements_structured_like_quad(mesh):
 
     order_q = np.lexsort((Cx, Cy))       # sort quads by (y, then x)
 
-    # Re-interleave the two triangles of each quad in the sorted order
+    # Re-interleave the two triangles of each quad in sorted order.
     idx_sorted        = np.empty(ne_pair, dtype=int)
     idx_sorted[0::2]  = tri1[order_q]
     idx_sorted[1::2]  = tri2[order_q]
@@ -310,13 +346,12 @@ def _sort_elements_structured_like_quad(mesh):
 
 
 def _make_plunger_sets_blockshift(mesh: dict, Npos: int):
-    """Generate the per-position connectivity by shifting the plunger one
-    quad-column at a time.
+    """Generate per-position connectivity by shifting the plunger.
 
     Starting from the reference layout, at each position the left-most
-    plunger column becomes air and the next air column to the right becomes
-    plunger. This realizes the rigid-translation of the plunger purely by
-    re-labelling domain ids (column 3 of IX), with no remeshing.
+    plunger column becomes air and the next air column to the right
+    becomes plunger. This realizes rigid plunger translation by
+    relabelling domain ids in column 3 of ``IX``, with no remeshing.
     """
     IX0 = np.asarray(mesh["IX"], dtype=int)
     X   = np.asarray(mesh["X"],  dtype=float)
@@ -329,15 +364,15 @@ def _make_plunger_sets_blockshift(mesh: dict, Npos: int):
     tri2 = np.arange(1, ne, 2, dtype=int)
     Nq   = ne // 2
 
-    # Quad centroids (same construction as the sorter)
+    # Quad centroids, constructed consistently with the sorter.
     nodes1 = IX0[tri1, 0:3] - 1
     nodes2 = IX0[tri2, 0:3] - 1
     Cx = (np.mean(X[nodes1, 0], axis=1) + np.mean(X[nodes2, 0], axis=1)) / 2.0
     Cy = (np.mean(X[nodes1, 1], axis=1) + np.mean(X[nodes2, 1], axis=1)) / 2.0
 
-    cols = np.unique(np.round(Cx, 8))    # distinct quad-column x-positions
-    dx   = np.min(np.diff(cols))         # column spacing (one shift step)
-    tol  = max(1e-10, dx * 1e-4)         # geometric comparison tolerance
+    cols = np.unique(np.round(Cx, 8))   # distinct quad-column x-positions
+    dx   = np.min(np.diff(cols))                # column spacing, i.e., one shift step
+    tol  = max(1e-10, dx * 1e-4)                # geometric comparison tolerance
 
     isPl_q0 = (IX0[tri1, 3] == 5) | (IX0[tri2, 3] == 5)   # quads tagged plunger at pos 0
 
@@ -377,8 +412,8 @@ def _make_plunger_sets_blockshift(mesh: dict, Npos: int):
         tR = np.concatenate([tri1[q_right], tri2[q_right]])
 
         IX_new        = IX_prev.copy()
-        IX_new[tL, 3] = 1   # LEFT  -> AIR
-        IX_new[tR, 3] = 5   # RIGHT -> PLUNGER
+        IX_new[tL, 3] = 1   # left plunger column -> air
+        IX_new[tR, 3] = 5   # right air column -> plunger
         IX_all.append(IX_new)
 
     return IX_all

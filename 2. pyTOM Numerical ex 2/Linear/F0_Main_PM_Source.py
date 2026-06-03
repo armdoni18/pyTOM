@@ -46,11 +46,11 @@ def F0_Main_PM_Source(fem, inputs):
     ----------
     fem : dict
         Finite-element data structure. Must contain ``IX``, ``X``,
-        ``ndof``.
+        and ``ndof``.
     inputs : dict
-        Problem input dictionary. The "PM" sub-dictionary
-        (described above) is consulted; if absent or empty, a
-        zero vector is returned.
+        Problem input dictionary. The ``PM`` sub-dictionary
+        described above is consulted; if absent or empty, a zero
+        vector is returned.
 
     Returns
     -------
@@ -66,7 +66,7 @@ def F0_Main_PM_Source(fem, inputs):
     if PM is None:
         return T_pm
 
-# Read the parallel PM description lists (domain id / Br / angle)
+    # Read the parallel PM description lists: domain ID, Br, and angle.
     domIDs    = np.asarray(PM.get("domIDs", []), dtype=int).reshape(-1)
     Br_vals   = np.asarray(PM.get("Br",     []), dtype=float).reshape(-1)
     theta_deg = np.asarray(PM.get("theta",  []), dtype=float).reshape(-1)
@@ -76,7 +76,7 @@ def F0_Main_PM_Source(fem, inputs):
     if not (len(domIDs) == len(Br_vals) == len(theta_deg)):
         raise ValueError("PM.domIDs, PM.Br, PM.theta must have same length")
 
-# Coercive field H_c = B_r / mu0 for each PM domain
+    # Coercive field H_c = B_r / mu_0 for each PM domain.
     mu0     = 4.0 * np.pi * 1e-7
     Hc_vals = Br_vals / mu0
 
@@ -92,7 +92,7 @@ def F0_Main_PM_Source(fem, inputs):
     X  = fem["X"]
     eps = np.finfo(float).eps
 
-# Assemble the boundary integral for each PM domain independently
+    # Assemble the boundary integral for each PM domain independently.
     for dom_id, (Hcx, Hcy) in Hc_map.items():
         mask = (IX[:, 3] == dom_id)
         if not np.any(mask):
@@ -100,38 +100,39 @@ def F0_Main_PM_Source(fem, inputs):
 
         elems = IX[mask, :3]                 # PM triangle node ids (n_pm, 3), 1-based
 
-        # Enumerate the three directed edges of each triangle: a->b, b->c, c->a
+        # Enumerate the three directed edges of each triangle: a->b, b->c, c->a.
         na_all = np.concatenate([elems[:, 0], elems[:, 1], elems[:, 2]])   # edge start nodes
         nb_all = np.concatenate([elems[:, 1], elems[:, 2], elems[:, 0]])   # edge end nodes
 
-        xa = X[na_all - 1, 0];  ya = X[na_all - 1, 1]   # start coords
-        xb = X[nb_all - 1, 0];  yb = X[nb_all - 1, 1]   # end coords
+        xa = X[na_all - 1, 0];  ya = X[na_all - 1, 1]   # start coordinates
+        xb = X[nb_all - 1, 0];  yb = X[nb_all - 1, 1]   # end coordinates
 
         vx = xb - xa                         # edge vector x
         vy = yb - ya                         # edge vector y
         l  = np.hypot(vx, vy)                # edge length
         valid = l > eps                      # skip degenerate edges
 
-        # Signed area (x2) of each triangle -> sign fixes the normal orientation
+        # Signed area (x2) of each triangle; its sign fixes the normal orientation.
         n1 = elems[:, 0]; n2 = elems[:, 1]; n3 = elems[:, 2]
         x1 = X[n1-1,0]; y1 = X[n1-1,1]
         x2 = X[n2-1,0]; y2 = X[n2-1,1]
         x3 = X[n3-1,0]; y3 = X[n3-1,1]
+
         area2 = (x2-x1)*(y3-y1) - (y2-y1)*(x3-x1)
         orient = np.where(np.concatenate([area2, area2, area2]) > 0, 1.0, -1.0)  # one per edge
 
-        # Edge tangent (unit) and the outward normal (tangent rotated by orient)
+        # Edge tangent and outward normal.
         tx = np.where(valid, vx / (l + eps), 0.0)
         ty = np.where(valid, vy / (l + eps), 0.0)
         nx_out =  orient * ty                # outward normal x
         ny_out = -orient * tx                # outward normal y
 
-        # Equivalent edge current K_bz = H_cx n_y - H_cy n_x, times edge length
+        # Equivalent edge current K_bz = H_cx*n_y - H_cy*n_x, multiplied by length.
         Kbz   = Hcx * ny_out - Hcy * nx_out
         I_edge = np.where(valid, Kbz * l, 0.0)
         I2     = 0.5 * I_edge                # lump half to each endpoint node
 
-        # Scatter the lumped contributions into the global PM load vector
+        # Scatter the lumped contributions into the global PM load vector.
         np.add.at(T_pm, na_all - 1, I2)
         np.add.at(T_pm, nb_all - 1, I2)
 
