@@ -2,12 +2,13 @@
 F9_Post_Process_Plot.py
 =======================
 
-Post-processing and visualization for the linear-material
-actuator of Section 5.2. Renders the optimized topology, the
-magnetic field, and the convergence histories (Fig. 5(c-d)).
+Post-processing and visualization for Numerical Example 2
+(linear case). This module renders the optimized topology,
+ and magnetic vector-potential contours,shown in Fig 5 (c-d).
 
-The general role of this module is documented in detail in the
-Example 3 version (``3. pyTOM Numerical ex 3/F9_Post_Process_Plot.py``).
+For the density plot, design elements are rendered only when they
+satisfy both the density threshold and the low-field cutoff used
+for the linear-material case.
 
 Module is infrastructure: no equation reference.
 """
