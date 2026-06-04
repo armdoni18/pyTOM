@@ -2,16 +2,12 @@
 F8_Main_Comp_Sens.py
 ====================
 
-Adjoint sensitivity analysis for the linear-material actuator of
-Section 5.2.
+Adjoint sensitivity analysis for the linear-material actuator.
 
-Same algorithmic role as the Example 3 version
-(``3. pyTOM Numerical ex 3/F8_Main_Comp_Sens.py``), where the
-full module documentation is provided. For the linear example,
-the adjoint Jacobian reduces to the linear stiffness matrix
-K(nu) (the nonlinearity contribution J_extra is absent), and
-the SIMP differentiation uses the constant nu_iron instead of
-nu_iron(|B|).
+For the linear case, the adjoint matrix is the linear stiffness
+matrix K(nu), stored as ``fem["S"]``. No Newton-Raphson Jacobian
+is used, and the SIMP derivative uses the constant iron
+reluctivity ``nu_iron``.
 """
 
 import numpy as np
@@ -20,10 +16,33 @@ from scipy.spatial.distance import cdist
 
 
 def _sech2(x: np.ndarray) -> np.ndarray:
+    """Element-wise sech^2(x) = 1 / cosh(x)^2."""
     return 1.0 / (np.cosh(x) ** 2)
 
 def F8_Main_Comp_Sens(fem, opt, inputs):
+    """Compute adjoint sensitivities for the force and volume.
 
+    Parameters
+    ----------
+    fem : dict
+        Converged FEM state, including field, force, MST path, and
+        material data.
+    opt : dict
+        Optimization state, including ``erho``, ``bt``, ``Ten``,
+        and design DOFs.
+    inputs : dict
+        Problem inputs used for the constant material properties.
+
+    Returns
+    -------
+    tuple
+        ``f``, ``g``, ``dfdx``, ``dgdx``, ``dfdrho_e``, ``lam``,
+        and ``dfdA``.
+    """
+
+    # =====================================================================
+    # OBJECTIVE (computed in F7) AND FIELD DATA
+    # =====================================================================
     f = float(fem.get("Fy_total", 0.0))
 
     IX     = np.asarray(fem["IX"], dtype=int)
@@ -38,9 +57,9 @@ def F8_Main_Comp_Sens(fem, opt, inputs):
     Ae_e = np.asarray(fem["Ae"], dtype=float).reshape(-1)
     penal = float(opt["penal"])
 
-    # -------------------------------------------------------
-    # STEP 1: dF/dA from MST
-    # -------------------------------------------------------
+    # =====================================================================
+    # STEP 1: EXPLICIT dF/dA FROM MST -- explicit derivative of Eq. (9)
+    # =====================================================================
     dfdA = np.zeros(ndof, dtype=float)
 
     edges        = np.asarray(fem["cleaned_air_loop_around_plunger"], dtype=int)
@@ -118,12 +137,12 @@ def F8_Main_Comp_Sens(fem, opt, inputs):
     for local in range(3):
         np.add.at(dfdA, ce_nodes[:, local], dFy_edge[:, local])
 
-    # -------------------------------------------------------
-    # STEP 2: Adjoint solve  (LINEAR: use S, not J)
-    # -------------------------------------------------------
+    # =====================================================================
+    # STEP 2: ADJOINT SOLVE USING LINEAR STIFFNESS MATRIX (LINEAR: use S, not J)
+    # =====================================================================
     S = fem["S"]
 
-    # STEP 2: Adjoint solve  -- Eq. (24):  K_t^T lambda = dF/dA
+    # Adjoint solve  -- Eq. (24):  K_t^T lambda = dF/dA
     all_dofs = np.arange(ndof, dtype=int)
     fixdof   = np.asarray(fem["bcdof"], dtype=int).reshape(-1) - 1   # Dirichlet DOFs
     freedof  = np.setdiff1d(all_dofs, fixdof)                        # free DOFs
@@ -132,9 +151,9 @@ def F8_Main_Comp_Sens(fem, opt, inputs):
     S_ff = S[freedof][:, freedof]
     lam[freedof] = spsolve(S_ff, dfdA[freedof])
 
-    # -------------------------------------------------------
-    # STEP 3: df/drho_e, LINEAR SIMP on design domain
-    # -------------------------------------------------------
+    # =====================================================================
+    # STEP 3: dF/drho_e VIA LINEAR SIMP DIFFERENTIATION
+    # =====================================================================
     dfdrho_e = np.zeros(ne, dtype=float)
 
     dd_mask = (IX[:, 3] == 2)
@@ -162,38 +181,40 @@ def F8_Main_Comp_Sens(fem, opt, inputs):
         Ae_vec  = A[nodes_dd]    # (ndd, 3)
         lam_vec = lam[nodes_dd]  # (ndd, 3)
 
-        # dfdrho_e(e) = lambda^T (dnu_drho * K0) A  (vectorized)
+        # dfdrho_e(e) = lambda^T (dnu_drho * K0) A
         K0A = np.einsum('eij,ej->ei', K0_dd, Ae_vec)   # (ndd, 3)
         dfdrho_e[dd_idx] = dnu_drho_dd * np.sum(lam_vec * K0A, axis=1)
 
-    # -------------------------------------------------------
-    # STEP 4: Chain to nodal design variables
-    # -------------------------------------------------------
-    Ten   = opt["Ten"]
-    bt    = float(opt["bt"])
+    # =====================================================================
+    # STEP 4: CHAIN TO NODAL DESIGN VARIABLES
+    # =====================================================================
+    Ten   = opt["Ten"]                          # element-to-nodal averaging (Eq. (17))
+    bt    = float(opt["bt"])                    # projection sharpness beta
     fdv   = np.asarray(opt["fdv"], dtype=float).reshape(-1)
 
+    # Heaviside projection derivative -- Eq. (19): beta sech^2(beta fdv)/(2 tanh beta)
     denom        = 2.0 * np.tanh(bt) + 1e-30
     DnrhoDfdv    = _sech2(bt * fdv) * bt / denom   # (nn,)
 
+    # Map element sensitivity back to nodes (Ten^T) and apply projection factor
     dfdx_all = np.asarray(Ten.T @ dfdrho_e).reshape(-1) * DnrhoDfdv
 
     dof_dd = np.asarray(opt["dof_dd"], dtype=int).reshape(-1) - 1
     dfdx   = dfdx_all[dof_dd].reshape(-1, 1)
 
-    # -------------------------------------------------------
-    # Volume constraint
-    # -------------------------------------------------------
+    # =====================================================================
+    # STEP 5: VOLUME CONSTRAINT AND SENSITIVITY
+    # =====================================================================
     VT      = float(opt["VT"])
     VND     = float(opt["VND"])
     volfrac = float(opt["volfrac"])
 
     erho = np.asarray(opt["erho"], dtype=float).reshape(-1)
-    V_rho = float(np.dot(Ae_e, erho))
-    g     = (V_rho - VND) / (VT - VND + 1e-30) - volfrac
+    V_rho = float(np.dot(Ae_e, erho))                       # current material volume
+    g     = (V_rho - VND) / (VT - VND + 1e-30) - volfrac    # normalized constraint
 
-    dVdrho_e  = Ae_e / (VT + 1e-30)
-    dgdx_all  = np.asarray(Ten.T @ dVdrho_e).reshape(-1) * DnrhoDfdv
+    dVdrho_e  = Ae_e / (VT + 1e-30)                                     # dV/drho_e = A_e / V_T
+    dgdx_all  = np.asarray(Ten.T @ dVdrho_e).reshape(-1) * DnrhoDfdv    # same projection chain
     dgdx      = dgdx_all[dof_dd].reshape(1, -1)
 
     print("Linear Sensitivity Computation Done. ✅")
