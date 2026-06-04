@@ -2,19 +2,14 @@
 F9_Post_Process_Plot.py
 =======================
 
-Post-processing and visualization. Generates the figures used
-throughout Section 5 of the manuscript:
+Post-processing and visualization for Numerical Example 3
+(multi-position case). Renders the optimized topology,
+magnetic vector-potential contours, and force-profile comparison
+used in Figs. 8 and 9.
 
-    1. Objective history (force vs. iteration).
-    2. Volume-constraint history.
-    3. Final density field.
-    4. Magnetic vector potential contour.
-    5. Magnetic flux density magnitude.
-    6. Maxwell stress tensor integration path overlay.
-
-The output directory is configurable through the ``out_dir``
-argument so that ``Main_code_Mulpos.py`` can route each N_pos run
-to its own subfolder.
+The output directory is configurable through ``out_dir`` so that
+each selected N_pos run can write figures to its own results
+folder.
 
 Module is infrastructure: no equation reference.
 """
@@ -33,29 +28,25 @@ from collections import defaultdict
 
 def F9_Post_Process_Plot(fem, opt, fields_pos=None, mst_pos=None,
                          out_dir="Figures", dpi=200, density_thr=0.9):
-    """
-    Render diagnostics and result plots to ``out_dir``.
+    """Render diagnostics and result plots to ``out_dir``.
 
     Parameters
     ----------
     fem : dict
         Finite-element state at the current iteration.
     opt : dict
-        Optimization state (history arrays, ``iter``, ``bt``, ...).
+        Optimization state, including history arrays and ``iter``.
     fields_pos : dict or None
-        Snapshots of (A, B, IX) keyed by plunger position index
-        (1-based). Saved at selected ``plot_positions`` to
-        visualize the magnetic field at representative positions.
+        Snapshots of ``A``, ``B``, and ``IX`` keyed by plunger
+        position index.
     mst_pos : dict or None
-        Saved Maxwell-stress-tensor integration data per plunger
-        position, used to overlay the closed air loop on the
-        plots.
+        Reserved for Maxwell-stress-tensor plotting data.
     out_dir : str
-        Output directory (created if it does not exist).
+        Output directory.
     dpi : int
         Figure resolution.
     density_thr : float
-        Threshold for the "binary" density rendering.
+        Threshold for density rendering.
     """
 
     os.makedirs(out_dir, exist_ok=True)
