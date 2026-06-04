@@ -2,10 +2,14 @@
 F9_Post_Process_Plot.py
 =======================
 
-Post-processing and visualization for the IPM motor of Section 5.1.
-Renders the magnetic vector potential contours for the validation comparison against COMSOL (Fig. 3).
+Post-processing and visualization for Numerical Example 1: the
+IPM motor field-validation case of Section 5.1. This module
+renders the magnetic vector-potential contours used for the
+comparison against COMSOL (Fig. 4 and Table 3).
 
-The general role of this module is documented in detail in the Example 3 version (``3. pyTOM Numerical ex 3/F9_Post_Process_Plot.py``).
+For consistency with the other examples, the same function name
+and output-folder structure are retained, although Example 1 does
+not plot topology, force profile, or MST integration results.
 
 Module is infrastructure: no equation reference.
 """
@@ -19,7 +23,6 @@ import matplotlib.pyplot as plt
 
 from scipy.interpolate import griddata
 from collections import defaultdict
-
 
 def F9_Post_Process_Plot(fem, opt, fields_pos=None, mst_pos=None,
                          out_dir="Figures", dpi=200, density_thr=0.9):
