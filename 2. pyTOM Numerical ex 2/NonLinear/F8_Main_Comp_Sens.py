@@ -4,58 +4,41 @@ F8_Main_Comp_Sens.py
 
 Adjoint sensitivity analysis for the force objective and the
 volume constraint, with the chain rule extending through the
-SIMP interpolation (Eq. (20)), the Heaviside projection (Eq.
-(19)), and the Helmholtz filter (Eq. (18)).
+SIMP interpolation (Eq. (20)), the Heaviside projection
+(Eq. (19)), and the Helmholtz filter (Eq. (18)).
 
 Theory link
 -----------
-The total design sensitivity (Eq. (23)) for the force objective
-combines an explicit term and an implicit term:
+The objective is the magnetic force on the plunger, evaluated
+from the Maxwell stress tensor integration of Eq. (9). The total
+design sensitivity (Eq. (23)) contains explicit and implicit
+dependencies on the design variables:
 
-    dF / d phi  =  (partial F / partial A) (dA / d phi)
-                 + (partial F / partial phi) .
+    dF / dphi
+        = (partial F / partial A) (dA / dphi)
+        + (partial F / partial phi)
 
-The implicit term is evaluated efficiently by the adjoint method:
-a single linear solve of Eq. (24) gives lambda from
+where A is the converged magnetic vector potential and phi is
+the filtered design variable.
 
-    K_t^T lambda = partial F / partial A ,
+The explicit term is obtained by differentiating Eq. (9) with
+respect to A. The implicit term is evaluated by the adjoint
+method through Eq. (24):
 
-where K_t is the converged Newton-Raphson Jacobian assembled in
-``F6_Main_NR_Jacobian.py``. The sensitivity then reduces to the
-compact form of Eq. (25),
+    K_t^T lambda = partial F / partial A
 
-    dF / d phi  =  - lambda^T (partial R / partial phi) ,
+where K_t is the converged tangent Jacobian from
+``F6_Main_NR_Jacobian.py``.
 
-with the partial derivative of the residual flowing through the
-SIMP interpolation, the projection, and the filter.
+The total sensitivity then reduces to Eq. (25):
 
-Implementation overview
------------------------
-STEP 1: dF / dA from MST edge integrals
-    Differentiates Eq. (9) with respect to the nodal A_z values.
-    For each edge of the closed air loop (same edges as in
-    ``F7_Main_Comp_Force.py``), the chain rule combines the
-    dependence of (T_xx, T_xy, T_yy) on B with the dependence
-    of B on the three nodal A values of the neighboring element.
+    dF / dphi
+        = - lambda^T (partial R / partial phi)
 
-STEP 2: Adjoint solve
-    Eq. (24) with the converged NR Jacobian (passed in as ``J``).
-
-STEP 3: dF / drho_e via SIMP differentiation
-    For design-domain elements only:
-        dnu/drho = (nu_iron(|B|) - nu_air) * p * rho^(p-1) ,
-    and the element-level sensitivity is
-        dF/drho_e = lambda^T (dnu/drho * K0_e) A .
-
-STEP 4: Chain to nodal design variables
-    The projection derivative contributes the factor
-        beta * sech^2(beta * phi_tilde) / (2 tanh beta)
-    and the Helmholtz filter contributes a back-substitution
-    against the cached LU factorization. The result is then
-    restricted to the design-domain DOFs.
-
-The volume sensitivity (Eq. (26)) follows the same projection and
-filter chain with the constant dV/drho_e = A_e / V_T.
+with the residual derivative propagated through the SIMP
+interpolation (Eq. (20)), Heaviside projection (Eq. (19)), and
+Helmholtz filter (Eq. (18)). The volume sensitivity follows the
+same chain and corresponds to Eq. (26).
 """
 
 import numpy as np
@@ -69,46 +52,34 @@ def _sech2(x: np.ndarray) -> np.ndarray:
     return 1.0 / (np.cosh(x) ** 2)
 
 def F8_Main_Comp_Sens(fem, opt, J):
-    """
-    Compute adjoint sensitivities for the force and volume.
+    """Compute adjoint sensitivities for the force and volume.
 
     Parameters
     ----------
     fem : dict
-        Finite-element data at the converged NR state. Must
-        contain the same entries used by F7, plus ``nu_e``.
+        Converged FEM state, including field, force, MST path, and
+        material data.
     opt : dict
-        Optimization state (filter LU factors, Ten matrix,
-        current ``erho``, projection sharpness ``bt``, etc.).
+        Optimization state, including ``erho``, ``bt``, ``Ten``,
+        and design DOFs.
     J : csc_matrix
-        Converged Newton-Raphson Jacobian K_t from
-        ``F6_Main_NR_Jacobian``.
+        Converged Newton-Raphson Jacobian used for the adjoint solve.
 
     Returns
     -------
-    f : float
-        Scalar objective value (Fy total).
-    g : float
-        Volume-constraint value (V/VT - volfrac).
-    dfdx : ndarray, shape (n_dd, 1)
-        Sensitivity of f w.r.t. design DOFs.
-    dgdx : ndarray, shape (1, n_dd)
-        Sensitivity of g w.r.t. design DOFs.
-    dfdrho_e : ndarray, shape (ne, 1)
-        Element-level objective sensitivity (diagnostic).
-    lam : ndarray, shape (ndof, 1)
-        Adjoint vector (diagnostic).
-    dfdA : ndarray, shape (ndof, 1)
-        Explicit dF/dA contribution (diagnostic).
+    tuple
+        ``f``, ``g``, ``dfdx``, ``dgdx``, ``dfdrho_e``, ``lam``,
+        and ``dfdA``.
     """
 
-# Objective value f = Fy on the plunger (computed in F7)
+    # =====================================================================
+    # OBJECTIVE (computed in F7) AND FIELD DATA
+    # =====================================================================
     f = float(fem.get("Fy_total", 0.0))
 
-# Unpack converged-state fields
     IX     = np.asarray(fem["IX"], dtype=int)
     X      = np.asarray(fem["X"],  dtype=float)
-    A      = np.asarray(fem["A"],  dtype=float).reshape(-1)    # converged A_z
+    A      = np.asarray(fem["A"],  dtype=float).reshape(-1)
     Bx_all = np.asarray(fem["Bx"], dtype=float).reshape(-1)
     By_all = np.asarray(fem["By"], dtype=float).reshape(-1)
     Bmag   = np.asarray(fem["B"],  dtype=float).reshape(-1)
@@ -119,9 +90,9 @@ def F8_Main_Comp_Sens(fem, opt, J):
     Ae_e = np.asarray(fem["Ae"], dtype=float).reshape(-1)
     penal = float(opt["penal"])
 
-    # -------------------------------------------------------
-    # STEP 1: dF/dA from MST  -- explicit derivative of Eq. (9)
-    # -------------------------------------------------------
+    # =====================================================================
+    # STEP 1: EXPLICIT dF/dA FROM MST -- explicit derivative of Eq. (9)
+    # =====================================================================
     dfdA = np.zeros(ndof, dtype=float)
 
     edges = np.asarray(fem["cleaned_air_loop_around_plunger"], dtype=int)  # same loop as F7
@@ -175,9 +146,9 @@ def F8_Main_Comp_Sens(fem, opt, J):
     dBx_dA = np.column_stack([ci_c, cj_c, ck_c]) * inv2V[:, None]   # (Nedge, 3)
     dBy_dA = np.column_stack([-bi_c, -bj_c, -bk_c]) * inv2V[:, None]
 
-    Bx_c = Bx_all[closest_e]                  # B at the integration element
+    Bx_c = Bx_all[closest_e]                    # B at the integration element
     By_c = By_all[closest_e]
-    nu_c = nu_e[closest_e]                     # reluctivity at the integration element
+    nu_c = nu_e[closest_e]                      # reluctivity at the integration element
     nx = normal[:, 0]
     ny = normal[:, 1]
 
@@ -195,23 +166,24 @@ def F8_Main_Comp_Sens(fem, opt, J):
     for local in range(3):
         np.add.at(dfdA, ce_nodes[:, local], dFy_edge[:, local])
 
-    # -------------------------------------------------------
-    # STEP 2: Adjoint solve  -- Eq. (24):  K_t^T lambda = dF/dA
-    # -------------------------------------------------------
+    # =====================================================================
+    # STEP 2: ADJOINT SOLVE USING NR JACOBIAN -- Eq. (24): K_t^T lambda = dF/dA
+    # =====================================================================
+    # Adjoint solve  -- Eq. (24):  K_t^T lambda = dF/dA
     all_dofs = np.arange(ndof, dtype=int)
     fixdof   = np.asarray(fem["bcdof"], dtype=int).reshape(-1) - 1   # Dirichlet DOFs
     freedof  = np.setdiff1d(all_dofs, fixdof)                        # free DOFs
 
     lam = np.zeros(ndof, dtype=float)
-    J_ff = J[freedof][:, freedof]             # free-free block of K_t
-    lam[freedof] = spsolve(J_ff, dfdA[freedof])   # solve on free DOFs only
+    J_ff = J[freedof][:, freedof]                   # free-free block of K_t
+    lam[freedof] = spsolve(J_ff, dfdA[freedof])     # solve on free DOFs only
 
-    # -------------------------------------------------------
-    # STEP 3: dF/drho_e via SIMP differentiation (design domain)
-    # -------------------------------------------------------
+    # =====================================================================
+    # STEP 3: dF/drho_e VIA NONLINEAR SIMP DIFFERENTIATION
+    # =====================================================================
     dfdrho_e = np.zeros(ne, dtype=float)
 
-    dd_mask = (IX[:, 3] == 2)                 # design-domain elements
+    dd_mask = (IX[:, 3] == 2)                       # design-domain elements
     dd_idx  = np.where(dd_mask)[0]
 
     if dd_idx.size > 0:
@@ -241,9 +213,9 @@ def F8_Main_Comp_Sens(fem, opt, J):
         K0A = np.einsum('eij,ej->ei', K0_dd, Ae_vec)        # (K0_e A) per element
         dfdrho_e[dd_idx] = dnu_drho_dd * np.sum(lam_vec * K0A, axis=1)
 
-    # -------------------------------------------------------
-    # STEP 4: Chain to nodal design variables (projection + filter)
-    # -------------------------------------------------------
+    # =====================================================================
+    # STEP 4: CHAIN TO NODAL DESIGN VARIABLES
+    # =====================================================================
     Ten   = opt["Ten"]                        # element-to-nodal averaging (Eq. (17))
     bt    = float(opt["bt"])                  # projection sharpness beta
     fdv   = np.asarray(opt["fdv"], dtype=float).reshape(-1)   # filtered design field
@@ -256,21 +228,21 @@ def F8_Main_Comp_Sens(fem, opt, J):
     dfdx_all = np.asarray(Ten.T @ dfdrho_e).reshape(-1) * DnrhoDfdv
 
     dof_dd = np.asarray(opt["dof_dd"], dtype=int).reshape(-1) - 1   # design DOFs (0-based)
-    dfdx   = dfdx_all[dof_dd].reshape(-1, 1)  # restrict to design DOFs
+    dfdx   = dfdx_all[dof_dd].reshape(-1, 1)                        # restrict to design DOFs
 
-    # -------------------------------------------------------
-    # Volume constraint value and sensitivity  -- Eq. (26)
-    # -------------------------------------------------------
+    # =====================================================================
+    # STEP 5: VOLUME CONSTRAINT AND SENSITIVITY -- Eq. (26)
+    # =====================================================================
     VT      = float(opt["VT"])
     VND     = float(opt["VND"])
     volfrac = float(opt["volfrac"])
 
     erho = np.asarray(opt["erho"], dtype=float).reshape(-1)
-    V_rho = float(np.dot(Ae_e, erho))         # current material volume
-    g     = (V_rho - VND) / (VT - VND + 1e-30) - volfrac   # normalized constraint
+    V_rho = float(np.dot(Ae_e, erho))                       # current material volume
+    g     = (V_rho - VND) / (VT - VND + 1e-30) - volfrac    # normalized constraint
 
-    dVdrho_e  = Ae_e / (VT + 1e-30)           # dV/drho_e = A_e / V_T
-    dgdx_all  = np.asarray(Ten.T @ dVdrho_e).reshape(-1) * DnrhoDfdv   # same projection chain
+    dVdrho_e  = Ae_e / (VT + 1e-30)                                     # dV/drho_e = A_e / V_T
+    dgdx_all  = np.asarray(Ten.T @ dVdrho_e).reshape(-1) * DnrhoDfdv    # same projection chain
     dgdx      = dgdx_all[dof_dd].reshape(1, -1)
 
     print("Nonlinear Sensitivity (NR-adjoint) Computation Done. ✅")
