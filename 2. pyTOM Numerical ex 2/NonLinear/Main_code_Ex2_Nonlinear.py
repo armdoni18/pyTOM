@@ -139,7 +139,10 @@ pm_domIDs = set(inputs["PM"]["domIDs"])
 
 while (opt["bt"] < inputs["bt_fn"]) and (opt["iter"] <= inputs["iterMax"]):
 
-    # ── Filter + Projection ──
+    # ── Filter + Projection ──────────────────────────────────────────────────
+    # Eq. (18): Helmholtz filter via cached LU back-substitution.
+    # The filtered nodal field opt["fdv"] is then projected by the
+    # regularized Heaviside (Eq. (19)).
     opt["fdv"]  = spsolve(opt["Kft_sparse"], sp.csc_matrix.dot(opt["Tft"], opt["nv"]))
     opt["nrho"] = np.maximum(np.minimum(np.tanh(opt["bt"] * opt["fdv"]) / (2 * np.tanh(opt["bt"])) + 0.5,1), -1)
     opt["erho"] = opt["Ten"].dot(opt["nrho"])
