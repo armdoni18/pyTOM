@@ -208,8 +208,7 @@ def run_single_npos(Npos, inputs_base, modelname, out_dir):
         # ── Filter + Projection ──────────────────────────────────────────────────
         # Eq. (18): Helmholtz filter via cached LU back-substitution.
         # The filtered nodal field opt["fdv"] is then projected by the
-        # regularized Heaviside (Eq. (19)) and clipped to [-1, 1]
-        # (numerical safeguard; see F3 docstring for the rationale).
+        # regularized Heaviside (Eq. (19)).
         opt["fdv"]  = spsolve(opt["Kft_sparse"], sp.csc_matrix.dot(opt["Tft"], opt["nv"]))
         opt["nrho"] = np.maximum(np.minimum(np.tanh(opt["bt"] * opt["fdv"]) / (2 * np.tanh(opt["bt"])) + 0.5,1), -1)
         opt["erho"] = opt["Ten"].dot(opt["nrho"])
