@@ -53,8 +53,8 @@ def F7_Main_Comp_Force(fem):
     Parameters
     ----------
     fem : dict
-        Finite-element data with the converged field. Must contain
-        ``IX``, ``X``, ``ne``, ``nu_e``, ``Bx``, and ``By``.
+        Finite-element data with the converged field. Must
+        contain ``IX``, ``X``, ``ne``, ``nu_e``, ``Bx``, ``By``.
 
     Returns
     -------
@@ -193,12 +193,15 @@ def F7_Main_Comp_Force(fem):
     nx = normal[:, 0]                           # outward normal components
     ny = normal[:, 1]
 
-    # Maxwell stress tensor components of Eq. (7) in 2D.
+    # Maxwell stress tensor components -- Eq. (7) in 2D (in-plane B only):
+    #   T_xx = nu * 0.5 * (B_x^2 - B_y^2)
+    #   T_xy = nu * B_x * B_y
+    #   T_yy = nu * 0.5 * (B_y^2 - B_x^2)
     Txx = nu * 0.5 * (Bx**2 - By**2)
     Txy = nu * Bx * By
     Tyy = nu * 0.5 * (By**2 - Bx**2)
 
-    # Per-edge force contribution dF = T n ds of Eq. (9).
+    # Per-edge force contribution dF = T n ds  -- Eq. (9)
     dFx = (Txx * nx + Txy * ny) * ds
     dFy = (Txy * nx + Tyy * ny) * ds
     dFx = np.where(valid, dFx, 0.0)          # zero-out degenerate edges
