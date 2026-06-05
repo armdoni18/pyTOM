@@ -5,12 +5,11 @@ optimization (TO) of magnetic actuators. It accompanies the paper:
 
 > A. Ramadoni, J. Lee, *pyTOM: Topology Optimization for Magnetic Actuators in Python*.
 
-The framework captures three features that are often omitted in educational TO
-codes for electromechanical devices: permanent magnets as fixed field sources,
-nonlinear (field-dependent) reluctivity for magnetic saturation, and a
-multi-position analysis strategy that evaluates the actuator over several
-plunger positions. It uses a Helmholtz density filter, a Heaviside projection,
-and the Method of Moving Asymptotes (MMA) for the design update.
+The framework captures three advanced features: permanent magnets as fixed field sources, 
+nonlinear (field-dependent) reluctivity for magnetic saturation, and a multi-position 
+analysis strategy that evaluates the actuator over several plunger positions. 
+It uses a Helmholtz density filter, a Heaviside projection, and the Method of Moving 
+Asymptotes (MMA) for the design update.
 
 ## Requirements
 
