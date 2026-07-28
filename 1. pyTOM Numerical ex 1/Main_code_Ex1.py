@@ -37,6 +37,7 @@ from F6_Main_NR_Jacobian     import F6_Main_NR_Jacobian
 from F9_Post_Process_Plot    import F9_Post_Process_Plot
 from F0_Main_Mat_Nonlinear   import F0_Main_Mat_Nonlinear
 from F0_Main_Mat_Derivative  import F0_Main_Mat_Derivative
+from F0_Main_Line_Search     import F0_Main_Line_Search
 
 start_time = time.time()
 
@@ -84,6 +85,11 @@ inputs["MMA"]       = 1000                    # MMA c-constant
 inputs["rmin"]      = 20                      # filter radius r_min (mesh length units, Eq. (18))
 inputs["iterMax"]   = 1                       # maximum number of TO iterations
 inputs["scale"]     = 1                       # target objective magnitude for MMA scaling
+
+# --- Output verbosity (Reviewer 2, III.B) ---
+# True  : print the Newton-Raphson trace (step size, energy) at every iteration.
+# False : suppress the inner trace and print only the compact summary.
+inputs["verbose"]   = True
 
 # --- Boundary condition geometry (IPM motor: circular) ---
 inputs["bc_cx"]   = 0.0                       # circular-boundary center x (IPM Dirichlet detection)
@@ -192,7 +198,8 @@ while (opt["bt"] < inputs["bt_fn"]) and (opt["iter"] <= inputs["iterMax"]):
         A_old = fem["A"].copy()
         T_rhs = fem["T"].copy()
 
-        print(f"\nPos {j+1}: Initial linear solve done. Starting NR...")
+        if inputs.get("verbose", True):
+            print(f"\nPos {j+1}: Initial linear solve done. Starting NR...")
 
         all_dofs = np.arange(fem["ndof"])
         fixdof   = fem["bcdof"].astype(int) - 1
@@ -201,14 +208,32 @@ while (opt["bt"] < inputs["bt_fn"]) and (opt["iter"] <= inputs["iterMax"]):
 
         A_old[fixdof] = bcval
 
+        # ── Line-search material arrays (fixed within the NR loop) ──────────
+        # nu_lin_e : constant reluctivity per element (air/coil/PM values;
+        #            nu_air is also the linear branch of the SIMP energy).
+        # s_nl_e   : nonlinear mixing factor of Eq. (E5) in
+        #            F0_Main_Line_Search (0 = linear, rho^p = SIMP, 1 = iron).
+        dom_ls   = IX[:, 3].astype(int)
+        nu_lin_e = np.full(ne, inputs["nu_air"])
+        nu_lin_e[dom_ls == 3] = inputs["nu_coil1"]
+        nu_lin_e[dom_ls == 4] = inputs["nu_coil2"]
+        nu_lin_e[dom_ls == 6] = inputs["nu_coil3"]
+        for pmid in pm_domIDs:
+            nu_lin_e[dom_ls == pmid] = inputs["nu_PM"]
+        s_nl_e = np.zeros(ne)
+        s_nl_e[dom_ls == 5] = 1.0
+        s_nl_e[dom_ls == 2] = erho_vec[dom_ls == 2] ** penal
+
         # ── NEWTON–RAPHSON LOOP ───────────────────────────────────────────────
         NR_max = 30
         NR_tol = 1e-5
+        E_run  = None                 # energy of accepted iterate (line search)
 
         J_mat = None
 
         for iterNR in range(NR_max):
-            print(f"  NR iter {iterNR + 1}")
+            if inputs.get("verbose", True):
+                print(f"  NR iter {iterNR + 1}")
 
             A_old[fixdof] = bcval
             fem["A"]      = A_old
@@ -265,20 +290,25 @@ while (opt["bt"] < inputs["bt_fn"]) and (opt["iter"] <= inputs["iterMax"]):
             deltaA          = np.zeros_like(A_old)
             deltaA[freedof] = deltaA_free
 
-            # STEP 7: Damped Newton update — Eq. (6) with damping
-            #   A^(k+1) = A^(k) + alpha * dA
-            alpha = 0.2
-            A_new = A_old + alpha * deltaA
-            A_new[fixdof] = bcval
+            # STEP 7: Damped Newton update — Eq. (6) with the step size
+            #   alpha in {1, 1/2, 1/4, ...} selected by the energy-based
+            #   backtracking line search (globally convergent; recovers
+            #   the full Newton step near the solution).
+            A_new, alpha, E_run, n_ls = F0_Main_Line_Search(
+                fem, A_old, deltaA, T_rhs, nu_lin_e, s_nl_e,
+                fixdof, bcval, E_old=E_run)
 
             # STEP 8: Convergence check
             errA = (np.linalg.norm(deltaA[freedof]) /
                     (np.linalg.norm(A_new[freedof]) + 1e-12))
-            print(f"     ||ΔA||/||A|| = {errA:.3e}")
+            if inputs.get("verbose", True):
+                print(f"     ||ΔA||/||A|| = {errA:.3e}   "
+                      f"(alpha = {alpha:.3g}, E = {E_run:.6e})")
 
             A_old = A_new
             if errA < NR_tol:
-                print("NR converged.")
+                if inputs.get("verbose", True):
+                    print("NR converged.")
                 break
 
         fem["A"] = A_old
@@ -291,7 +321,8 @@ while (opt["bt"] < inputs["bt_fn"]) and (opt["iter"] <= inputs["iterMax"]):
                 "IX": fem["IX"].copy(),
             }
 
-        print("NR loop finished.")
+        if inputs.get("verbose", True):
+            print("NR loop finished.")
 
     F9_Post_Process_Plot(fem, opt, fields_pos, mst_pos=mst_pos)
 

@@ -54,7 +54,12 @@ def F0_Main_Mat_Derivative(B):
 
     # Same coefficients and overflow guard as in F0_Main_Mat_Nonlinear
     a, b, c = 49.4, 1.46, 520.6                         # same coefficients as F0_Main_Mat_Nonlinear
-    z = np.clip(b * (B ** 2), 0.0, 700.0)  # same overflow guard
+    # The exponent is clipped at 350 (not 700) because expterm is
+    # squared in the denominator below; exp(350)^2 ~ 1e304 stays
+    # finite in double precision, whereas exp(700)^2 overflows. The
+    # clamp mu >= mu0 is active far below this bound (b|B|^2 ~ 9.7),
+    # so the returned derivative is unaffected for all physical B.
+    z = np.clip(b * (B ** 2), 0.0, 350.0)  # overflow guard (see note)
     expterm = np.exp(z)                                 # exp(b |B|^2)
 
     # dmu/dB, analytic derivative of mu = 1/(a*exp(b*B^2)+c))
