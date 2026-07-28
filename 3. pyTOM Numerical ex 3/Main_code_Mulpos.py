@@ -59,6 +59,7 @@ from F3_Pre_Opt_Init        import F3_Pre_Opt_Init
 from F4_Main_Solve_VecPot   import F4_Main_Solve_VecPot
 from F5_Main_Comp_Flux      import F5_Main_Comp_Flux
 from F6_Main_NR_Jacobian    import F6_Main_NR_Jacobian
+from F0_Main_Line_Search    import F0_Main_Line_Search
 from F7_Main_Comp_Force     import F7_Main_Comp_Force
 from F8_Main_Comp_Sens      import F8_Main_Comp_Sens
 from F9_Post_Process_Plot   import F9_Post_Process_Plot
@@ -71,7 +72,7 @@ from F0_Main_Mat_Derivative import F0_Main_Mat_Derivative
 
 # --- Model/run settings ---
 MODELNAME = "Example_3_Actuator_MultiPos"     # Gmsh model name (without .msh)
-NPOS_LIST   = [1, 11, 21]                     # selected N_pos values for comparison (Figs. 8, 9)
+NPOS_LIST   = [1, 11, 21]                     # NUMBERS of plunger positions to run (counts, not indices): 1, 11, 21
 RESULTS_DIR = "Results"                       # root output folder; each run writes to Results/Npos_<n>/
 
 # --- Base input dictionary copied independently for each N_pos run ---
@@ -111,6 +112,11 @@ INPUTS_BASE = {
     "iterMax"  : 400,                         # maximum number of TO iterations
     "scale"    : 1000,                        # target objective magnitude for MMA scaling
 
+    # --- Output verbosity (Reviewer 2, III.B) ---
+    # True  : print the inner Newton-Raphson trace and MMA timing every step.
+    # False : print only one concise summary line per TO iteration.
+    "verbose"  : True,
+
     # --- Permanent magnet settings ---
     "PM"       : {
         "domIDs": [7],                        # mesh domain IDs assigned to permanent magnets
@@ -136,10 +142,30 @@ _FALLBACK_COLORS = ["#E24B4A", "#5DCAA5", "#D4537E", "#639922", "#EF9F27"]
 # =====================================================================
 
 def run_single_npos(Npos, inputs_base, modelname, out_dir):
-    """Run the full topology-optimization driver for one N_pos value.
-    The base input dictionary is copied locally so each N_pos run remains
-    independent. The function returns the converged per-position force
-    profile used by ``plot_comparison`` to assemble Fig. 9.
+    """Run the full topology-optimization driver for one multi-position case.
+
+    Parameters
+    ----------
+    Npos : int
+        The NUMBER of discrete plunger positions evaluated in this run
+        (for example 1, 11, or 21). It is a count, NOT a position index.
+        The multi-position loop below iterates the position index
+        ``j = 0, 1, ..., Npos - 1`` and averages the per-position force and
+        sensitivities over these ``Npos`` positions (Eqs. (18) and (25)).
+        ``Npos = 1`` therefore means a single fixed plunger position.
+    inputs_base : dict
+        Base input dictionary; it is deep-copied locally so each run with a
+        different ``Npos`` remains fully independent.
+    modelname : str
+        Mesh/model name passed to ``F1_Pre_Mesh_Import``.
+    out_dir : str
+        Output folder for this run (``Results/Npos_<Npos>/``).
+
+    Returns
+    -------
+    dict
+        The converged per-position force profile used by
+        ``plot_comparison`` to assemble the comparison figure.
     """
 
     os.makedirs(out_dir, exist_ok=True)
@@ -203,6 +229,8 @@ def run_single_npos(Npos, inputs_base, modelname, out_dir):
         step = max(1, (Npos - 1) // 2)
         plot_positions = [0, step, Npos - 1]
 
+    mma_time_total = 0.0   # Reviewer 2 (III.A): cumulative MMA optimizer time
+
     while (opt["bt"] < inputs["bt_fn"]) and (opt["iter"] <= inputs["iterMax"]):
 
         # ── Filter + Projection ──────────────────────────────────────────────────
@@ -257,7 +285,8 @@ def run_single_npos(Npos, inputs_base, modelname, out_dir):
             A_old  = fem["A"].copy()
             T_rhs  = fem["T"].copy()
 
-            print(f"\nPos {j+1}/{Npos}: Initial linear solve done. Starting NR...")
+            if inputs.get("verbose", True):
+                print(f"\nPos {j+1}/{Npos}: Initial linear solve done. Starting NR...")
 
             all_dofs = np.arange(fem["ndof"])
             fixdof   = fem["bcdof"].astype(int) - 1
@@ -266,12 +295,28 @@ def run_single_npos(Npos, inputs_base, modelname, out_dir):
 
             A_old[fixdof] = bcval
 
+            # ── Line-search material arrays (fixed within the NR loop) ──────────
+            # Domain map (Example 3): iron = 5,6 ; design = 2 ; coils = 3,4 ;
+            # PM = pm_domIDs ; air = 1. Same energy model and Brauer
+            # coefficients as Examples 1 and 2 (F0_Main_Line_Search).
+            dom_ls   = IX[:, 3].astype(int)
+            nu_lin_e = np.full(ne, inputs["nu_air"])
+            nu_lin_e[dom_ls == 3] = inputs["nu_coil1"]
+            nu_lin_e[dom_ls == 4] = inputs["nu_coil2"]
+            for pmid in pm_domIDs:
+                nu_lin_e[dom_ls == pmid] = inputs["nu_PM"]
+            s_nl_e = np.zeros(ne)
+            s_nl_e[(dom_ls == 5) | (dom_ls == 6)] = 1.0
+            s_nl_e[dom_ls == 2] = erho_vec[dom_ls == 2] ** penal
+
             # ── NEWTON–RAPHSON LOOP ───────────────────────────────────────────────
             NR_max = 30
             NR_tol = 1e-5
+            E_run  = None                 # energy of accepted iterate (line search)
 
             for iterNR in range(NR_max):
-                print(f"  NR iter {iterNR + 1}")
+                if inputs.get("verbose", True):
+                    print(f"  NR iter {iterNR + 1}")
 
                 A_old[fixdof] = bcval
                 fem["A"]      = A_old
@@ -328,18 +373,23 @@ def run_single_npos(Npos, inputs_base, modelname, out_dir):
 
                 # STEP 7: Damped Newton update — Eq. (6) with damping
                 #   A^(k+1) = A^(k) + alpha * dA
-                alpha  = 0.2
-                A_new  = A_old + alpha * deltaA
-                A_new[fixdof] = bcval
+                #   alpha in {1, 1/2, 1/4, ...} chosen by the energy-based
+                #   backtracking line search (globally convergent; recovers
+                #   the full Newton step near the solution). Replaces 0.2.
+                A_new, alpha, E_run, n_ls = F0_Main_Line_Search(
+                    fem, A_old, deltaA, T_rhs, nu_lin_e, s_nl_e,
+                    fixdof, bcval, E_old=E_run)
 
                 # STEP 8: Convergence check
                 errA = (np.linalg.norm(deltaA[freedof]) /
                         (np.linalg.norm(A_new[freedof]) + 1e-12))
-                print(f"     ||ΔA||/||A|| = {errA:.3e}")
+                if inputs.get("verbose", True):
+                    print(f"     ||ΔA||/||A|| = {errA:.3e}   (alpha = {alpha:.3g})")
 
                 A_old = A_new
                 if errA < NR_tol:
-                    print("NR converged.")
+                    if inputs.get("verbose", True):
+                        print("NR converged.")
                     break
 
             fem["A"] = A_old
@@ -352,7 +402,8 @@ def run_single_npos(Npos, inputs_base, modelname, out_dir):
                     "IX": fem["IX"].copy()
                 }
 
-            print("NR loop finished.")
+            if inputs.get("verbose", True):
+                print("NR loop finished.")
 
             # ── Force and sensitivity analysis: nonlinear case ──
             Fx_total, Fy_total, fem = F7_Main_Comp_Force(fem)
@@ -416,6 +467,10 @@ def run_single_npos(Npos, inputs_base, modelname, out_dir):
         f_mma = opt["f"][-1]
         dfdx_mma = opt["dfdx"]
 
+        # --- Reviewer 2 (III.A): report the MMA optimizer time separately ---
+        # The design update (MMA) is timed and accumulated so its cost can be
+        # compared against the rest of the iteration (FEM solve, force, adjoint).
+        t_mma_start = time.time()
         (opt["dvnew"], ymma, zmma, lam_mma, xsi, eta, mu_mma, zet, s,
          MMA["low"], MMA["upp"]) = mmasub(
             1, len(opt["dv"]), opt["iter"],
@@ -425,6 +480,11 @@ def run_single_npos(Npos, inputs_base, modelname, out_dir):
             opt["g"][-1], opt["dgdx"],
             MMA["low"], MMA["upp"],
             MMA["a0"], MMA["a"], MMA["c"], MMA["d"], 1)
+        t_mma = time.time() - t_mma_start
+        mma_time_total += t_mma
+        if inputs.get("verbose", True):
+            print("   MMA optimizer time: %.4f s  (cumulative %.2f s)"
+                  % (t_mma, mma_time_total))
 
         opt["iter"]    += 1
         opt["dvolder"]  = opt["dvold"]
@@ -444,6 +504,12 @@ def run_single_npos(Npos, inputs_base, modelname, out_dir):
             opt["cont_iter"] += 1
             if np.mod(opt["cont_iter"], inputs["bt_ns"]) == 1:
                 opt["bt"] *= inputs["bt_ic"]
+
+    # --- Reviewer 2 (III.A): summary of MMA optimizer cost for this run ---
+    _run_time = time.time() - start_time
+    print("MMA optimizer total: %.2f s of %.2f s wall time (%.1f%%)"
+          % (mma_time_total, _run_time,
+             100.0 * mma_time_total / max(_run_time, 1e-9)))
 
     print('finish')
 
@@ -542,10 +608,10 @@ if __name__ == "__main__":
     total_start = time.time()
     all_results = []
 
-    for npos in NPOS_LIST:
-        run_dir = os.path.join(RESULTS_DIR, f"Npos_{npos}")
+    for n_pos in NPOS_LIST:              # n_pos = number of positions for this run (1, 11, 21)
+        run_dir = os.path.join(RESULTS_DIR, f"Npos_{n_pos}")
         result  = run_single_npos(
-            Npos        = npos,
+            Npos        = n_pos,
             inputs_base = INPUTS_BASE,
             modelname   = MODELNAME,
             out_dir     = run_dir
