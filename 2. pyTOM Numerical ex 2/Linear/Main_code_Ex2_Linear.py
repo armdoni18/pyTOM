@@ -84,6 +84,11 @@ inputs["rmin"]      = 20                      # filter radius r_min (mesh length
 inputs["iterMax"]   = 400                     # maximum number of TO iterations
 inputs["scale"]     = 100                     # target objective magnitude for MMA scaling
 
+# --- Output verbosity (Reviewer 2, III.B) ---
+# True  : print MMA timing every step.  False : one concise line per TO iteration.
+# (The linear case has no Newton-Raphson loop, so there is no inner trace to suppress.)
+inputs["verbose"]   = True
+
 # --- Permanent magnet settings ---
 inputs["PM"] = {
     "domIDs": [7],                            # mesh domain IDs assigned to permanent magnets
@@ -131,6 +136,8 @@ IX_base = fem["IX"]
 
 # pm_domIDs set
 pm_domIDs = set(inputs["PM"]["domIDs"])
+
+mma_time_total = 0.0   # Reviewer 2 (III.A): cumulative MMA optimizer time
 
 while (opt["bt"] < inputs["bt_fn"]) and (opt["iter"] <= inputs["iterMax"]):
 
@@ -257,6 +264,8 @@ while (opt["bt"] < inputs["bt_fn"]) and (opt["iter"] <= inputs["iterMax"]):
     f_mma = opt["f"][-1]
     dfdx_mma = opt["dfdx"]
 
+    # --- Reviewer 2 (III.A): time the MMA optimizer step separately ---
+    t_mma_start = time.time()
     (opt["dvnew"], ymma, zmma, lam_mma, xsi, eta, mu_mma, zet, s,
      MMA["low"], MMA["upp"]) = mmasub(
         1, len(opt["dv"]), opt["iter"],
@@ -266,6 +275,11 @@ while (opt["bt"] < inputs["bt_fn"]) and (opt["iter"] <= inputs["iterMax"]):
         opt["g"][-1], opt["dgdx"],
         MMA["low"], MMA["upp"],
         MMA["a0"], MMA["a"], MMA["c"], MMA["d"], 1)
+    t_mma = time.time() - t_mma_start
+    mma_time_total += t_mma
+    if inputs.get("verbose", True):
+        print("   MMA optimizer time: %.4f s  (cumulative %.2f s)"
+              % (t_mma, mma_time_total))
 
     opt["iter"]    += 1
     opt["dvolder"]  = opt["dvold"]
@@ -285,6 +299,11 @@ while (opt["bt"] < inputs["bt_fn"]) and (opt["iter"] <= inputs["iterMax"]):
         opt["cont_iter"] += 1
         if np.mod(opt["cont_iter"], inputs["bt_ns"]) == 1:
             opt["bt"] *= inputs["bt_ic"]
+
+# --- Reviewer 2 (III.A): summary of MMA optimizer cost ---
+_wall = time.time() - start_time
+print("MMA optimizer total: %.2f s of %.2f s wall time (%.1f%%)"
+      % (mma_time_total, _wall, 100.0 * mma_time_total / max(_wall, 1e-9)))
 
 print('finish')
 
