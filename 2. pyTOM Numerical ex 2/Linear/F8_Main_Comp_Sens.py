@@ -58,7 +58,7 @@ def F8_Main_Comp_Sens(fem, opt, inputs):
     penal = float(opt["penal"])
 
     # =====================================================================
-    # STEP 1: EXPLICIT dF/dA FROM MST -- explicit derivative of Eq. (9)
+    # STEP 1: EXPLICIT dF/dA FROM MST -- explicit derivative of Eq. (12)
     # =====================================================================
     dfdA = np.zeros(ndof, dtype=float)
 
@@ -142,7 +142,7 @@ def F8_Main_Comp_Sens(fem, opt, inputs):
     # =====================================================================
     S = fem["S"]
 
-    # Adjoint solve  -- Eq. (24):  K_t^T lambda = dF/dA
+    # Adjoint solve  -- Eq. (27):  K_t^T lambda = dF/dA
     all_dofs = np.arange(ndof, dtype=int)
     fixdof   = np.asarray(fem["bcdof"], dtype=int).reshape(-1) - 1   # Dirichlet DOFs
     freedof  = np.setdiff1d(all_dofs, fixdof)                        # free DOFs
@@ -188,11 +188,11 @@ def F8_Main_Comp_Sens(fem, opt, inputs):
     # =====================================================================
     # STEP 4: CHAIN TO NODAL DESIGN VARIABLES
     # =====================================================================
-    Ten   = opt["Ten"]                          # element-to-nodal averaging (Eq. (17))
+    Ten   = opt["Ten"]                          # element-to-nodal averaging (Eq. (20))
     bt    = float(opt["bt"])                    # projection sharpness beta
     fdv   = np.asarray(opt["fdv"], dtype=float).reshape(-1)
 
-    # Heaviside projection derivative -- Eq. (19): beta sech^2(beta fdv)/(2 tanh beta)
+    # Heaviside projection derivative -- Eq. (22): beta sech^2(beta fdv)/(2 tanh beta)
     denom        = 2.0 * np.tanh(bt) + 1e-30
     DnrhoDfdv    = _sech2(bt * fdv) * bt / denom   # (nn,)
 
