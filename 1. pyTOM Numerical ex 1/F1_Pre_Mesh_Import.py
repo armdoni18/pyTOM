@@ -4,7 +4,7 @@ F1_Pre_Mesh_Import.py
 
 Gmsh mesh parser specialized for Numerical Example 1: the
 one-quarter IPM motor field-validation case of Section 5.1
-(Fig. 4 and Table 3).
+(Fig. 3 and Table 3).
 
 The physical groups parsed for this example are:
     1 = Air

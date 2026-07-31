@@ -5,7 +5,7 @@ F9_Post_Process_Plot.py
 Post-processing and visualization for Numerical Example 1: the
 IPM motor field-validation case of Section 5.1. This module
 renders the magnetic vector-potential contours used for the
-comparison against COMSOL (Fig. 4 and Table 3).
+comparison against COMSOL (Fig. 3 and Table 3).
 
 For consistency with the other examples, the same function name
 and output-folder structure are retained, although Example 1 does

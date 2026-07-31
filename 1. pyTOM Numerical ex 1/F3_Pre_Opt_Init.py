@@ -10,8 +10,8 @@ kept for structural consistency with the other examples and is
 invoked in field-only mode.
 
 It initializes the design/non-design partition, design-variable
-state, Helmholtz filter operator of Eq. (18), element-to-nodal
-averaging matrix of Eq. (17), and MMA parameter containers.
+state, Helmholtz filter operator of Eq. (21), element-to-nodal
+averaging matrix of Eq. (20), and MMA parameter containers.
 """
 
 import numpy as np
@@ -126,7 +126,7 @@ def F3_Pre_Opt_Init(inputs, fem):
     # Filter radius R = rmin/(2*sqrt(3))
     Kd_scale = (inputs["rmin"] / (2.0 * np.sqrt(3.0))) ** 2
 
-    # Helmholtz filter of Eq. (18): (K_d + K_m) * phi_tilde = K_m * phi.
+    # Helmholtz filter of Eq. (21): (K_d + K_m) * phi_tilde = K_m * phi.
     Se_diff = Kd_scale * (
         np.einsum('ei,ej->eij', c_n, c_n) + np.einsum('ei,ej->eij', b_n, b_n)
     ) * inv4A[:, None, None]

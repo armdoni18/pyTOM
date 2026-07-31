@@ -5,7 +5,7 @@ Main_code_Ex1.py
 This is the main driver script for Numerical Example 1 (IPM motor
 field validation): validation of the magnetostatic vector-
 potential formulation against COMSOL on the one-quarter IPM
-motor (Section 5.1 of the manuscript, Fig. 4 and Table 3).
+motor (Section 5.1 of the manuscript, Fig. 3 and Table 3).
 
 This driver performs the same nonlinear magnetostatic solve as
 the innermost solver loop of ``Main_code_Mulpos.py`` (Example 3)
@@ -52,14 +52,14 @@ Npos = 1   # static single-position problem (no rotor stroke)
 inputs = {}
 
 # --- Optimization / SIMP parameters ---
-inputs["penal"]     = 3                       # SIMP penalization exponent p (Eq. (20))
+inputs["penal"]     = 3                       # SIMP penalization exponent p (Eq. (23))
 inputs["initdv"]    = 1                       # initial (unfiltered) design-variable value
 
 # --- Volume parameters ---
 inputs["VT"]        = 471.23                  # total area of the model
 inputs["VND"]       = 362.77                  # non-design area  (= VT - VDD)
 inputs["VDD"]       = 108.46                  # design-domain area
-inputs["volfrac"]   = 0.40                    # prescribed volume fraction V* (Eq. (13))
+inputs["volfrac"]   = 0.40                    # prescribed volume fraction V* (Eq. (16))
 
 # --- Material properties (relative permeability) ---
 inputs["mu0"]       = 4 * np.pi * 1e-7        # vacuum permeability mu_0 [H/m]
@@ -75,18 +75,18 @@ inputs["J_am2"]     = 10                      # coil current density [A/m^2]
 
 # --- Continuation schedule (Heaviside projection sharpness beta) ---
 inputs["conv"]      = 0.008                   # objective-change tolerance to trigger continuation
-inputs["bt_init"]   = 0.1                     # initial Heaviside projection sharpness beta (Eq. (19))
+inputs["bt_init"]   = 0.1                     # initial Heaviside projection sharpness beta (Eq. (22))
 inputs["bt_ic"]     = 1.5                     # beta increase factor per continuation step
 inputs["bt_ns"]     = 4                       # number of iterations between beta increases
 inputs["bt_fn"]     = 20                      # final beta value (stops the outer TO loop)
 
 # --- Solver / MMA optimizer settings ---
 inputs["MMA"]       = 1000                    # MMA c-constant
-inputs["rmin"]      = 20                      # filter radius r_min (mesh length units, Eq. (18))
+inputs["rmin"]      = 20                      # filter radius r_min (mesh length units, Eq. (21))
 inputs["iterMax"]   = 1                       # maximum number of TO iterations
 inputs["scale"]     = 1                       # target objective magnitude for MMA scaling
 
-# --- Output verbosity (Reviewer 2, III.B) ---
+# --- Output verbosity ---
 # True  : print the Newton-Raphson trace (step size, energy) at every iteration.
 # False : suppress the inner trace and print only the compact summary.
 inputs["verbose"]   = True
@@ -144,9 +144,9 @@ pm_domIDs = set(inputs["PM"]["domIDs"])
 while (opt["bt"] < inputs["bt_fn"]) and (opt["iter"] <= inputs["iterMax"]):
 
     # ── Filter + Projection ──────────────────────────────────────────────────
-    # Eq. (18): Helmholtz filter via cached LU back-substitution.
+    # Eq. (21): Helmholtz filter via cached LU back-substitution.
     # The filtered nodal field opt["fdv"] is then projected by the
-    # regularized Heaviside (Eq. (19)).
+    # regularized Heaviside (Eq. (22)).
     opt["fdv"]  = spsolve(opt["Kft_sparse"], sp.csc_matrix.dot(opt["Tft"], opt["nv"]))
     opt["nrho"] = np.maximum(np.minimum(np.tanh(opt["bt"] * opt["fdv"]) / (2 * np.tanh(opt["bt"])) + 0.5, 1), -1)
     opt["erho"] = opt["Ten"].dot(opt["nrho"])
@@ -211,7 +211,7 @@ while (opt["bt"] < inputs["bt_fn"]) and (opt["iter"] <= inputs["iterMax"]):
         # ── Line-search material arrays (fixed within the NR loop) ──────────
         # nu_lin_e : constant reluctivity per element (air/coil/PM values;
         #            nu_air is also the linear branch of the SIMP energy).
-        # s_nl_e   : nonlinear mixing factor of Eq. (E5) in
+        # s_nl_e   : nonlinear mixing factor (E5) defined in
         #            F0_Main_Line_Search (0 = linear, rho^p = SIMP, 1 = iron).
         dom_ls   = IX[:, 3].astype(int)
         nu_lin_e = np.full(ne, inputs["nu_air"])
@@ -290,10 +290,13 @@ while (opt["bt"] < inputs["bt_fn"]) and (opt["iter"] <= inputs["iterMax"]):
             deltaA          = np.zeros_like(A_old)
             deltaA[freedof] = deltaA_free
 
-            # STEP 7: Damped Newton update — Eq. (6) with the step size
-            #   alpha in {1, 1/2, 1/4, ...} selected by the energy-based
-            #   backtracking line search (globally convergent; recovers
-            #   the full Newton step near the solution).
+            # STEP 7: Damped Newton update of Eq. (7),
+            #   A^(k+1) = A^(k) + alpha_k * dA, with the step size
+            #   alpha_k in {1, 1/2, 1/4, ...} selected by the energy-based
+            #   backtracking line search: the trial step is accepted when it
+            #   decreases the energy functional of Eq. (8), i.e. the criterion
+            #   of Eq. (9). Globally convergent, and it recovers the full
+            #   Newton step of Eq. (6) near the solution.
             A_new, alpha, E_run, n_ls = F0_Main_Line_Search(
                 fem, A_old, deltaA, T_rhs, nu_lin_e, s_nl_e,
                 fixdof, bcval, E_old=E_run)
