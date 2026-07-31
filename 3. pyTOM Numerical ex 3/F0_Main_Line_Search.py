@@ -5,6 +5,14 @@ F0_Main_Line_Search.py
 Energy-based backtracking line search for the damped Newton-Raphson
 solution of the nonlinear magnetostatic problem.
 
+Notation
+--------
+``Eq. (n)`` refers to the numbered equations of the manuscript.
+``(En)`` refers to the auxiliary equations written out in this
+docstring; they are the discrete or element-level counterparts of the
+manuscript equations, and (E5) has no manuscript counterpart because it
+is specific to this implementation.
+
 Motivation and theory
 ---------------------
 Solving the nonlinear magnetostatic system of Eq. (4),
@@ -16,8 +24,9 @@ convex magnetic energy functional
 
     E(A) = sum_e  Area_e * w_e(|B_e|)  -  A^T (f + f_pm),          (E1)
 
-where the element energy density w_e is the co-gradient integral of
-the (monotone) B-H characteristic,
+which is the element-assembled form of the energy functional of
+Eq. (8), where the element energy density w_e is the co-energy
+integral of the (monotone) B-H characteristic appearing inside Eq. (8),
 
     w(B) = int_0^B  nu(s) s ds.                                     (E2)
 
@@ -26,7 +35,7 @@ Stationarity of (E1) reproduces Eq. (2)/(4): d/dA [sum Area_e w_e]
 Eq. (3) is monotone, E is convex and the Newton direction dA obtained
 from Eq. (5) is a descent direction for E. A damped Newton update
 
-    A^(k+1) = A^(k) + alpha_k dA,      alpha_k in (0, 1],
+    A^(k+1) = A^(k) + alpha_k dA,      alpha_k in (0, 1],       [Eq. (7)]
 
 is therefore globally convergent when alpha_k is chosen by the
 energy criterion
@@ -34,17 +43,21 @@ energy criterion
     alpha_k = max { 1, 1/2, 1/4, 1/8, ... }  such that
     E(A^(k) + alpha_k dA) < E(A^(k)),                               (E3)
 
+which is the acceptance criterion of Eq. (9) in the manuscript,
+
 and it recovers the full Newton step (alpha = 1) - and hence the
 superlinear local convergence of Newton's method - as soon as the
-iterate enters the region of attraction. This replaces the previous
-constant damping alpha = 0.2, which was robust but unnecessarily
-slow (it never exploits fast local Newton convergence) and could
-exceed the iteration budget for strongly saturated designs.
+iterate enters the region of attraction. Compared with a constant
+damping factor, this both removes the non-convergence observed on
+strongly saturated designs and lowers the iteration count, since a
+fixed fraction of the Newton correction never exploits the fast local
+convergence of Newton's method.
 
 Closed-form energy density for the Brauer model
 -----------------------------------------------
 For the Brauer reluctivity of Eq. (3), nu(B) = a exp(b B^2) + c,
-the integral (E2) evaluates in closed form:
+the integral (E2) evaluates in closed form, as stated in the text
+following Eq. (8) of the manuscript:
 
     w_iron(B) = a/(2b) (exp(b B^2) - 1) + c B^2 / 2.               (E4)
 
@@ -62,10 +75,10 @@ Every element is described by two arrays supplied by the driver:
 
     nu_lin_e : constant (linear) reluctivity of the element, used
                for air, coil, and PM regions and as the "air" branch
-               of the SIMP interpolation of Eq. (20);
+               of the SIMP interpolation of Eq. (23);
     s_nl_e   : nonlinear mixing factor in [0, 1]:
                  0        -> purely linear element (air, coil, PM),
-                 rho_e^p  -> design-domain element (SIMP, Eq. (20)),
+                 rho_e^p  -> design-domain element (SIMP, Eq. (23)),
                  1        -> fixed (non-design) iron.
 
 so that the element energy density is
@@ -74,7 +87,7 @@ so that the element energy density is
 
 For s_nl_e = 0 this is the linear-material energy; for s_nl_e = 1 it
 is the full Brauer energy; in between it is exactly the potential of
-the SIMP-interpolated reluctivity of Eq. (20). This keeps the module
+the SIMP-interpolated reluctivity of Eq. (23). This keeps the module
 independent of the mesh-specific domain identifiers, so the same file
 is shared by Examples 1, 2 (nonlinear), and 3.
 
@@ -94,8 +107,8 @@ dictionary and printing inside the backtracking loop).
 This module is invoked from:
   - the main driver scripts inside the Newton-Raphson loop
     (``Main_code_Ex1.py``, ``Main_code_Ex2_Nonlinear.py``,
-    ``Main_code_Mulpos.py``), replacing the previous constant-alpha
-    update of Eq. (6).
+    ``Main_code_Mulpos.py``), where it supplies the step size alpha_k of
+    the damped update of Eq. (7).
 """
 
 import numpy as np
@@ -109,7 +122,7 @@ _A_BR, _B_BR, _C_BR = 49.4, 1.46, 520.6       # fitted Brauer coefficients
 # Clamping field B_c: a exp(b B_c^2) + c = nu_max  ->  linear branch above.
 _BC2 = np.log((_NU_MAX - _C_BR) / _A_BR) / _B_BR   # B_c^2
 _WC  = (_A_BR / (2.0 * _B_BR)) * (np.exp(_B_BR * _BC2) - 1.0) \
-       + 0.5 * _C_BR * _BC2                        # w_iron(B_c), Eq. (E4)
+       + 0.5 * _C_BR * _BC2                        # w_iron(B_c), see (E4)
 
 
 def _flux_magnitude(fem, A):
@@ -145,7 +158,7 @@ def _flux_magnitude(fem, A):
 
 
 def _brauer_energy_density(B):
-    """Clamped Brauer energy density w(B) of Eqs. (E2)/(E4).
+    """Clamped Brauer energy density w(B) of (E2) and (E4).
 
     Parameters
     ----------
@@ -170,7 +183,7 @@ def _brauer_energy_density(B):
 
 
 def F0_Main_Energy(fem, A, T_rhs, nu_lin_e, s_nl_e):
-    """Evaluate the magnetic energy functional E(A) of Eq. (E1).
+    """Evaluate the magnetic energy functional E(A) of (E1).
 
     Parameters
     ----------
@@ -196,7 +209,7 @@ def F0_Main_Energy(fem, A, T_rhs, nu_lin_e, s_nl_e):
     B  = _flux_magnitude(fem, A)
     B2 = B ** 2
 
-    # Element energy density, Eq. (E5): linear part + Brauer part.
+    # Element energy density, (E5): linear part + Brauer part.
     w_lin = 0.5 * nu_lin_e * B2
     w_e   = w_lin.copy()
     nl    = s_nl_e > 0.0                      # skip w_iron on linear elements
@@ -204,13 +217,14 @@ def F0_Main_Energy(fem, A, T_rhs, nu_lin_e, s_nl_e):
         w_iron  = _brauer_energy_density(B[nl])
         w_e[nl] = (1.0 - s_nl_e[nl]) * w_lin[nl] + s_nl_e[nl] * w_iron
 
-    # E(A) = field energy - load potential, Eq. (E1).
+    # E(A) = field energy - load potential, (E1).
     return float(np.dot(fem["Ae"], w_e) - np.dot(A, T_rhs))
 
 
 def F0_Main_Line_Search(fem, A_old, deltaA, T_rhs, nu_lin_e, s_nl_e,
                         fixdof, bcval, E_old=None, n_bisec_max=20):
-    """Backtracking line search on the magnetic energy, Eq. (E3).
+    """Backtracking line search on the magnetic energy, (E3), i.e. the
+    acceptance criterion of Eq. (9) of the manuscript.
 
     Starting from the full Newton step alpha = 1, the step size is
     halved until the energy functional decreases, i.e. the largest

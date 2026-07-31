@@ -13,17 +13,17 @@ and produces:
 2. The initial design variables together with the auxiliary
    optimization variables required by the density-based topology-
    optimization formulation. The projected physical density is
-   obtained through the Heaviside projection of Eq. (19), while
-   the optimization problem remains that of Eqs. (10)-(14).
+   obtained through the Heaviside projection of Eq. (22), while
+   the optimization problem remains that of Eqs. (13)-(17).
 
-3. The Helmholtz filter operator of Eq. (18). The filter is assembled
+3. The Helmholtz filter operator of Eq. (21). The filter is assembled
    as a 2D linear PDE, with R = rmin / (2*sqrt(3)) following the
    standard Helmholtz-filter scaling. The LU factorization of the
    filter matrix is cached so that each subsequent TO iteration only
    needs a back-substitution.
 
 4. The element-to-nodal averaging matrix ``Ten`` corresponding to the
-   linear interpolation of Eq. (17): Ten @ nodal_field gives the
+   linear interpolation of Eq. (20): Ten @ nodal_field gives the
    element-wise average of the three nodal values.
 
 5. The MMA optimizer parameters (a0, a, c, d, bounds), in the format
@@ -140,7 +140,7 @@ def F3_Pre_Opt_Init(inputs, fem):
     # Filter radius R = rmin/(2*sqrt(3))
     Kd_scale = (inputs["rmin"] / (2.0 * np.sqrt(3.0))) ** 2
 
-    # Helmholtz filter of Eq. (18): (K_d + K_m) * phi_tilde = K_m * phi.
+    # Helmholtz filter of Eq. (21): (K_d + K_m) * phi_tilde = K_m * phi.
     Se_diff = Kd_scale * (
         np.einsum('ei,ej->eij', c_n, c_n) + np.einsum('ei,ej->eij', b_n, b_n)
     ) * (inv2A * 0.25)[:, None, None]

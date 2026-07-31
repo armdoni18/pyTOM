@@ -14,7 +14,7 @@ sensitivity analysis:
 1. The element-level stiffness building block ``K0_e`` without
    the reluctivity factor, stored in flat form as ``fem["S_S"]``
    together with COO triplet indices ``fem["is"]`` and
-   ``fem["js"]``. This implements the element kernel of Eq. (21).
+   ``fem["js"]``. This implements the element kernel of Eq. (24).
 
 2. The Dirichlet boundary-condition information ``bcdof`` and
    ``bcval``. For the actuator examples, constrained nodes are
@@ -89,7 +89,7 @@ def F2_Pre_FEM_Init(inputs, mesh):
     c = np.column_stack([x2 - x1, x0 - x2, x1 - x0])    # (ne, 3)
     inv2A = 1.0 / (2.0 * Ae)                            # 1/(2 A_e) per element
 
-    # Reluctivity-free element kernel K0_e of Eq. (21).
+    # Reluctivity-free element kernel K0_e of Eq. (24).
     Se_all = (
         np.einsum('ei,ej->eij', c, c) + np.einsum('ei,ej->eij', b, b)
     ) * (inv2A * 0.25)[:, None, None]

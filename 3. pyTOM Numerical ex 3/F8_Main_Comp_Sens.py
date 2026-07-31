@@ -4,14 +4,14 @@ F8_Main_Comp_Sens.py
 
 Adjoint sensitivity analysis for the force objective and the
 volume constraint, with the chain rule extending through the
-SIMP interpolation (Eq. (20)), the Heaviside projection
-(Eq. (19)), and the Helmholtz filter (Eq. (18)).
+SIMP interpolation (Eq. (23)), the Heaviside projection
+(Eq. (22)), and the Helmholtz filter (Eq. (21)).
 
 Theory link
 -----------
 The objective is the magnetic force on the plunger, evaluated
-from the Maxwell stress tensor integration of Eq. (9). The total
-design sensitivity (Eq. (23)) contains explicit and implicit
+from the Maxwell stress tensor integration of Eq. (12). The total
+design sensitivity (Eq. (26)) contains explicit and implicit
 dependencies on the design variables:
 
     dF / dphi
@@ -21,24 +21,24 @@ dependencies on the design variables:
 where A is the converged magnetic vector potential and phi is
 the filtered design variable.
 
-The explicit term is obtained by differentiating Eq. (9) with
+The explicit term is obtained by differentiating Eq. (12) with
 respect to A. The implicit term is evaluated by the adjoint
-method through Eq. (24):
+method through Eq. (27):
 
     K_t^T lambda = partial F / partial A
 
 where K_t is the converged tangent Jacobian from
 ``F6_Main_NR_Jacobian.py``.
 
-The total sensitivity then reduces to Eq. (25):
+The total sensitivity then reduces to Eq. (28):
 
     dF / dphi
         = - lambda^T (partial R / partial phi)
 
 with the residual derivative propagated through the SIMP
-interpolation (Eq. (20)), Heaviside projection (Eq. (19)), and
-Helmholtz filter (Eq. (18)). The volume sensitivity follows the
-same chain and corresponds to Eq. (26).
+interpolation (Eq. (23)), Heaviside projection (Eq. (22)), and
+Helmholtz filter (Eq. (21)). The volume sensitivity follows the
+same chain and corresponds to Eq. (29).
 """
 
 import numpy as np
@@ -91,7 +91,7 @@ def F8_Main_Comp_Sens(fem, opt, J):
     penal = float(opt["penal"])
 
     # =====================================================================
-    # STEP 1: EXPLICIT dF/dA FROM MST -- explicit derivative of Eq. (9)
+    # STEP 1: EXPLICIT dF/dA FROM MST -- explicit derivative of Eq. (12)
     # =====================================================================
     dfdA = np.zeros(ndof, dtype=float)
 
@@ -167,9 +167,9 @@ def F8_Main_Comp_Sens(fem, opt, J):
         np.add.at(dfdA, ce_nodes[:, local], dFy_edge[:, local])
 
     # =====================================================================
-    # STEP 2: ADJOINT SOLVE USING NR JACOBIAN -- Eq. (24): K_t^T lambda = dF/dA
+    # STEP 2: ADJOINT SOLVE USING NR JACOBIAN -- Eq. (27): K_t^T lambda = dF/dA
     # =====================================================================
-    # Adjoint solve  -- Eq. (24):  K_t^T lambda = dF/dA
+    # Adjoint solve  -- Eq. (27):  K_t^T lambda = dF/dA
     all_dofs = np.arange(ndof, dtype=int)
     fixdof   = np.asarray(fem["bcdof"], dtype=int).reshape(-1) - 1   # Dirichlet DOFs
     freedof  = np.setdiff1d(all_dofs, fixdof)                        # free DOFs
@@ -199,7 +199,7 @@ def F8_Main_Comp_Sens(fem, opt, J):
         mu_iron_dd = F0_Main_Mat_Nonlinear(Bmag_dd)
         nu_iron_dd = 1.0 / mu_iron_dd
 
-        # SIMP derivative -- Eq. (20):  dnu/drho = (nu_iron - nu_air) p rho^(p-1)
+        # SIMP derivative -- Eq. (23):  dnu/drho = (nu_iron - nu_air) p rho^(p-1)
         dnu_drho_dd = (nu_iron_dd - nu_air) * penal * (erho_dd ** (penal - 1.0))
 
         # Element kernel K0_e for the design elements
@@ -209,18 +209,18 @@ def F8_Main_Comp_Sens(fem, opt, J):
         Ae_vec  = A[nodes_dd]                 # nodal A per design element
         lam_vec = lam[nodes_dd]               # nodal adjoint per design element
 
-        # Element sensitivity -- Eq. (25):  dF/drho_e = lambda^T (dnu/drho K0_e) A
+        # Element sensitivity -- Eq. (28):  dF/drho_e = lambda^T (dnu/drho K0_e) A
         K0A = np.einsum('eij,ej->ei', K0_dd, Ae_vec)        # (K0_e A) per element
         dfdrho_e[dd_idx] = dnu_drho_dd * np.sum(lam_vec * K0A, axis=1)
 
     # =====================================================================
     # STEP 4: CHAIN TO NODAL DESIGN VARIABLES
     # =====================================================================
-    Ten   = opt["Ten"]                        # element-to-nodal averaging (Eq. (17))
+    Ten   = opt["Ten"]                        # element-to-nodal averaging (Eq. (20))
     bt    = float(opt["bt"])                  # projection sharpness beta
     fdv   = np.asarray(opt["fdv"], dtype=float).reshape(-1)   # filtered design field
 
-    # Heaviside projection derivative -- Eq. (19): beta sech^2(beta fdv)/(2 tanh beta)
+    # Heaviside projection derivative -- Eq. (22): beta sech^2(beta fdv)/(2 tanh beta)
     denom        = 2.0 * np.tanh(bt) + 1e-30
     DnrhoDfdv    = _sech2(bt * fdv) * bt / denom              # (nn,)
 
@@ -231,7 +231,7 @@ def F8_Main_Comp_Sens(fem, opt, J):
     dfdx   = dfdx_all[dof_dd].reshape(-1, 1)                        # restrict to design DOFs
 
     # =====================================================================
-    # STEP 5: VOLUME CONSTRAINT AND SENSITIVITY -- Eq. (26)
+    # STEP 5: VOLUME CONSTRAINT AND SENSITIVITY -- Eq. (29)
     # =====================================================================
     VT      = float(opt["VT"])
     VND     = float(opt["VND"])

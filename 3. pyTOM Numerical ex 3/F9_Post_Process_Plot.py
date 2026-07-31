@@ -5,7 +5,7 @@ F9_Post_Process_Plot.py
 Post-processing and visualization for Numerical Example 3
 (multi-position case). Renders the optimized topology,
 magnetic vector-potential contours, and force-profile comparison
-used in Figs. 8 and 9.
+used in Figs. 7 and 8.
 
 The output directory is configurable through ``out_dir`` so that
 each selected N_pos run can write figures to its own results

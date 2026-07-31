@@ -8,7 +8,7 @@ from the nodal magnetic vector potential.
 Theory link
 -----------
 The relation B = curl A underlies the field-dependent reluctivity
-in Eq. (3) and the Maxwell stress tensor in Eq. (7). In 2D
+in Eq. (3) and the Maxwell stress tensor in Eq. (10). In 2D
 magnetostatics the vector potential A has only a z-component A_z,
 so the flux density has only in-plane components:
 

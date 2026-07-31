@@ -5,7 +5,7 @@ Main_code_Mulpos.py
 This is the main driver script for Numerical Example 3 (multi-position):
 topology optimization of a magnetic actuator with the BRAUER
 saturation model for the iron domain, considering the multi-position
-evaluation of the magnetic force (Section 5.3 of the manuscript, Figs. 7-9).
+evaluation of the magnetic force (Section 5.3 of the manuscript, Figs. 6-8).
 
 The driver contains the complete workflow implemented in pyTOM,
 including:
@@ -16,13 +16,13 @@ including:
 For each selected plunger-stroke discretization (N_pos = 1, 11, 21),
 the topology-optimization procedure is executed separately for each
 entry of ``NPOS_LIST`` within a single Python session. For each TO iteration,
-the design is updated through filtering (Eq. (18)), projection (Eq. (19)),
-and SIMP with the field-dependent nu_iron(|B|) of Eq. (20). The magnetic
+the design is updated through filtering (Eq. (21)), projection (Eq. (22)),
+and SIMP with the field-dependent nu_iron(|B|) of Eq. (23). The magnetic
 field is obtained by Newton-Raphson iteration on Eqs. (4)-(6) for every plunger
 position, using the consistent tangent matrix from ``F6_Main_NR_Jacobian``
 and the damped update of Eq. (6) with alpha. The resulting position-wise
 forces and sensitivities are computed by ``F8_Main_Comp_Sens`` and averaged
-according to Eqs. (15) and (22) before each MMA design update. Each run
+according to Eqs. (18) and (25) before each MMA design update. Each run
 writes to its own ``Results/Npos_<n>/`` folder, and the comparative
 force-profile plot ``Comparison_Force_Profile.png`` (Fig. 9) is produced
 at the end by ``plot_comparison``.
@@ -34,7 +34,7 @@ of the manuscript; see Appendix A for per-module details.
 
 User settings
 -------------
-    NPOS_LIST   : list of int   N_pos values to sweep (Figs. 8, 9)
+    NPOS_LIST   : list of int   N_pos values to sweep (Figs. 7, 8)
     RESULTS_DIR : str           root output folder
     INPUTS_BASE : dict          base input dictionary (penalization,
                                 volume fraction, MMA parameters,
@@ -79,14 +79,14 @@ RESULTS_DIR = "Results"                       # root output folder; each run wri
 INPUTS_BASE = {
 
     # --- Optimization / SIMP parameters ---
-    "penal"    : 3,                           # SIMP penalization exponent p (Eq. (20))
+    "penal"    : 3,                           # SIMP penalization exponent p (Eq. (23))
     "initdv"   : -0.5,                        # initial (unfiltered) design-variable value
 
     # --- Volume parameters ---
     "VT"       : 16800,                       # total area of the model
     "VND"      : 13200,                       # non-design area  (= VT - VDD)
     "VDD"      : 3600,                        # design-domain area
-    "volfrac"  : 0.30,                        # prescribed volume fraction V* (Eq. (13))
+    "volfrac"  : 0.30,                        # prescribed volume fraction V* (Eq. (16))
 
     # --- Material properties (relative permeability) ---
     "mu0"      : 4 * np.pi * 1e-7,            # vacuum permeability mu_0 [H/m]
@@ -101,18 +101,18 @@ INPUTS_BASE = {
 
     # --- Continuation schedule (Heaviside projection sharpness beta) ---
     "conv"     : 0.008,                       # objective-change tolerance to trigger continuation
-    "bt_init"  : 0.1,                         # initial Heaviside projection sharpness beta (Eq. (19))
+    "bt_init"  : 0.1,                         # initial Heaviside projection sharpness beta (Eq. (22))
     "bt_ic"    : 1.5,                         # beta increase factor per continuation step
     "bt_ns"    : 4,                           # number of iterations between beta increases
     "bt_fn"    : 20,                          # final beta value (stops the outer TO loop)
 
     # --- Solver / MMA optimizer settings ---
     "MMA"      : 1000,                        # MMA c-constant
-    "rmin"     : 10,                          # filter radius r_min (mesh length units, Eq. (18))
+    "rmin"     : 10,                          # filter radius r_min (mesh length units, Eq. (21))
     "iterMax"  : 400,                         # maximum number of TO iterations
     "scale"    : 1000,                        # target objective magnitude for MMA scaling
 
-    # --- Output verbosity (Reviewer 2, III.B) ---
+    # --- Output verbosity ---
     # True  : print the inner Newton-Raphson trace and MMA timing every step.
     # False : print only one concise summary line per TO iteration.
     "verbose"  : True,
@@ -229,14 +229,14 @@ def run_single_npos(Npos, inputs_base, modelname, out_dir):
         step = max(1, (Npos - 1) // 2)
         plot_positions = [0, step, Npos - 1]
 
-    mma_time_total = 0.0   # Reviewer 2 (III.A): cumulative MMA optimizer time
+    mma_time_total = 0.0   # cumulative time spent in the MMA design update
 
     while (opt["bt"] < inputs["bt_fn"]) and (opt["iter"] <= inputs["iterMax"]):
 
         # ── Filter + Projection ──────────────────────────────────────────────────
-        # Eq. (18): Helmholtz filter via cached LU back-substitution.
+        # Eq. (21): Helmholtz filter via cached LU back-substitution.
         # The filtered nodal field opt["fdv"] is then projected by the
-        # regularized Heaviside (Eq. (19)).
+        # regularized Heaviside (Eq. (22)).
         opt["fdv"]  = spsolve(opt["Kft_sparse"], sp.csc_matrix.dot(opt["Tft"], opt["nv"]))
         opt["nrho"] = np.maximum(np.minimum(np.tanh(opt["bt"] * opt["fdv"]) / (2 * np.tanh(opt["bt"])) + 0.5,1), -1)
         opt["erho"] = opt["Ten"].dot(opt["nrho"])
@@ -371,11 +371,13 @@ def run_single_npos(Npos, inputs_base, modelname, out_dir):
                 deltaA          = np.zeros_like(A_old)
                 deltaA[freedof] = deltaA_free
 
-                # STEP 7: Damped Newton update — Eq. (6) with damping
-                #   A^(k+1) = A^(k) + alpha * dA
-                #   alpha in {1, 1/2, 1/4, ...} chosen by the energy-based
-                #   backtracking line search (globally convergent; recovers
-                #   the full Newton step near the solution). Replaces 0.2.
+                # STEP 7: Damped Newton update of Eq. (7),
+                #   A^(k+1) = A^(k) + alpha_k * dA, with the step size
+                #   alpha_k in {1, 1/2, 1/4, ...} selected by the energy-based
+                #   backtracking line search: the trial step is accepted when
+                #   it decreases the energy functional of Eq. (8), i.e. the
+                #   criterion of Eq. (9). Globally convergent, and it recovers
+                #   the full Newton step of Eq. (6) near the solution.
                 A_new, alpha, E_run, n_ls = F0_Main_Line_Search(
                     fem, A_old, deltaA, T_rhs, nu_lin_e, s_nl_e,
                     fixdof, bcval, E_old=E_run)
@@ -419,7 +421,7 @@ def run_single_npos(Npos, inputs_base, modelname, out_dir):
             dfdx_pos.append(np.asarray(dfdx).reshape(-1, 1))
             dgdx_pos.append(np.asarray(dgdx).reshape(1, -1))
 
-        # ── Averaging across positions (Eqs. (15), (22)) ────────────────────────
+        # ── Averaging across positions (Eqs. (18), (25)) ────────────────────────
         # F_avg = (1/N_pos) * sum_i F^i and similarly for dF/dphi.
         if ((opt["iter"] == inputs["iterMax"]) or
                 (opt["deltaf"] < inputs["conv"])) and (opt["iter"] > saved_iter):
@@ -467,7 +469,7 @@ def run_single_npos(Npos, inputs_base, modelname, out_dir):
         f_mma = opt["f"][-1]
         dfdx_mma = opt["dfdx"]
 
-        # --- Reviewer 2 (III.A): report the MMA optimizer time separately ---
+        # --- Time the MMA design update separately from the analysis ---
         # The design update (MMA) is timed and accumulated so its cost can be
         # compared against the rest of the iteration (FEM solve, force, adjoint).
         t_mma_start = time.time()
@@ -495,7 +497,7 @@ def run_single_npos(Npos, inputs_base, modelname, out_dir):
         # ── Continuation strategy on projection sharpness beta ──────────────────
         # After convergence, beta is increased every `bt_ns`
         # iterations until `bt_fn` is reached, progressively
-        # sharpening the Heaviside projection (Eq. (19)).
+        # sharpening the Heaviside projection (Eq. (22)).
         if (opt["cont_sw"] == 0) and (opt["deltaf"] < inputs["conv"]):
             opt["cont_sw"]   = 1
             opt["cont_iter"] = 0
@@ -505,7 +507,7 @@ def run_single_npos(Npos, inputs_base, modelname, out_dir):
             if np.mod(opt["cont_iter"], inputs["bt_ns"]) == 1:
                 opt["bt"] *= inputs["bt_ic"]
 
-    # --- Reviewer 2 (III.A): summary of MMA optimizer cost for this run ---
+    # --- Summary of the MMA design-update cost for this run ---
     _run_time = time.time() - start_time
     print("MMA optimizer total: %.2f s of %.2f s wall time (%.1f%%)"
           % (mma_time_total, _run_time,
