@@ -8,18 +8,18 @@ plunger.
 
 Theory link
 -----------
-The Maxwell stress tensor of Eq. (7),
+The Maxwell stress tensor of Eq. (10),
 
     T = nu * (B o B - (1/2) |B|^2 I)
 
-is integrated over a closed path Gamma (Eq. (8)) to give the
+is integrated over a closed path Gamma (Eq. (11)) to give the
 electromagnetic force on the plunger. The closed path lies
 entirely in the air domain so that T is evaluated with the linear
 reluctivity nu_air. Integrating through the iron region would
 give an incorrect force because of the material nonlinearity
 gradient.
 
-The discrete approximation of Eq. (9),
+The discrete approximation of Eq. (12),
 
     F approx sum_k T_k n_k Delta s_k
 
@@ -193,7 +193,7 @@ def F7_Main_Comp_Force(fem):
     nx = normal[:, 0]                           # outward normal components
     ny = normal[:, 1]
 
-    # Maxwell stress tensor components -- Eq. (7) in 2D (in-plane B only):
+    # Maxwell stress tensor components -- Eq. (10) in 2D (in-plane B only):
     #   T_xx = nu * 0.5 * (B_x^2 - B_y^2)
     #   T_xy = nu * B_x * B_y
     #   T_yy = nu * 0.5 * (B_y^2 - B_x^2)
@@ -201,7 +201,7 @@ def F7_Main_Comp_Force(fem):
     Txy = nu * Bx * By
     Tyy = nu * 0.5 * (By**2 - Bx**2)
 
-    # Per-edge force contribution dF = T n ds  -- Eq. (9)
+    # Per-edge force contribution dF = T n ds  -- Eq. (12)
     dFx = (Txx * nx + Txy * ny) * ds
     dFy = (Txy * nx + Tyy * ny) * ds
     dFx = np.where(valid, dFx, 0.0)          # zero-out degenerate edges
