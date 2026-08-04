@@ -132,6 +132,7 @@ STYLE_MAP = {
     5 : {"color": "#D85A30", "linestyle": "-.",   "marker": "^", "label": r"$N_{pos}=5$"},
     7 : {"color": "#7F77DD", "linestyle": ":",    "marker": "D", "label": r"$N_{pos}=7$"},
     11: {"color": "#BA7517", "linestyle": (0, (5, 2, 1, 2)), "marker": "v", "label": r"$N_{pos}=11$"},
+    21: {"color": "#E24B4A", "linestyle": "--",   "marker": "o", "label": r"$N_{pos}=21$"},
 }
 
 _FALLBACK_COLORS = ["#E24B4A", "#5DCAA5", "#D4537E", "#639922", "#EF9F27"]
