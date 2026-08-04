@@ -110,7 +110,7 @@ def F9_Post_Process_Plot(fem, opt, fields_pos=None, mst_pos=None,
             # --- A contour ---
             fig, ax = plt.subplots(figsize=(6.0, 3.5))
 
-            levels = np.linspace(np.nanmin(Aq), np.nanmax(Aq), 48)
+            levels = np.linspace(np.nanmin(Aq), np.nanmax(Aq), 49)
 
             ax.contour(Xq, Yq, Aq,
                        levels=levels,
