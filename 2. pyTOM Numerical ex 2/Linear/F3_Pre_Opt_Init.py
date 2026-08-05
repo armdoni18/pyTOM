@@ -127,7 +127,6 @@ def F3_Pre_Opt_Init(inputs, fem):
     n0 = IX[:, 0] - 1
     n1 = IX[:, 1] - 1
     n2 = IX[:, 2] - 1
-
     x0 = X[n0, 0]; y0 = X[n0, 1]
     x1 = X[n1, 0]; y1 = X[n1, 1]
     x2 = X[n2, 0]; y2 = X[n2, 1]

@@ -113,7 +113,7 @@ def F8_Main_Comp_Sens(fem, opt, inputs):
 
     inv2V = 1.0 / (2.0 * Ve_arr + 1e-30)   # (Nedge,)
 
-    # dBx/dA and dBy/dA for each of 3 nodes  (Nedge, 3)
+    # dB/dA_node for the three nodes (B = curl A on linear triangles)
     dBx_dA = np.column_stack([ci_c, cj_c, ck_c]) * inv2V[:, None]
     dBy_dA = np.column_stack([-bi_c, -bj_c, -bk_c]) * inv2V[:, None]
 
@@ -124,16 +124,17 @@ def F8_Main_Comp_Sens(fem, opt, inputs):
     nx = normal[:, 0]
     ny = normal[:, 1]
 
-    # dTxy/dA = nu*(By*dBx_dA + Bx*dBy_dA)
-    # dTyy/dA = nu*0.5*(2*By*dBy_dA - 2*Bx*dBx_dA)
+    # Derivatives of the stress-tensor components w.r.t. nodal A:
+    #   dT_xy/dA = nu (By dBx/dA + Bx dBy/dA)
+    #   dT_yy/dA = nu (By dBy/dA - Bx dBx/dA)
     dTxy_dA = nu_c[:, None] * (By_c[:, None] * dBx_dA + Bx_c[:, None] * dBy_dA)
     dTyy_dA = nu_c[:, None] * (By_c[:, None] * dBy_dA - Bx_c[:, None] * dBx_dA)
 
-    # dFy_edge = (dTxy_dA*nx + dTyy_dA*ny) * ds
+    # Per-edge dFy/dA (only the y-force enters the objective)
     dFy_edge = (dTxy_dA * nx[:, None] + dTyy_dA * ny[:, None]) * ds[:, None]  # (Nedge,3)
     dFy_edge = np.where(valid[:, None], dFy_edge, 0.0)
 
-    # Scatter to dfdA
+    # Scatter each node's contribution into the global dF/dA vector
     for local in range(3):
         np.add.at(dfdA, ce_nodes[:, local], dFy_edge[:, local])
 
@@ -203,7 +204,7 @@ def F8_Main_Comp_Sens(fem, opt, inputs):
     dfdx   = dfdx_all[dof_dd].reshape(-1, 1)
 
     # =====================================================================
-    # STEP 5: VOLUME CONSTRAINT AND SENSITIVITY
+    # STEP 5: VOLUME CONSTRAINT AND SENSITIVITY -- Eq. (29)
     # =====================================================================
     VT      = float(opt["VT"])
     VND     = float(opt["VND"])
