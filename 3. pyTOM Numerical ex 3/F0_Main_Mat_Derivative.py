@@ -54,7 +54,7 @@ def F0_Main_Mat_Derivative(B):
 
     # Same coefficients and overflow guard as in F0_Main_Mat_Nonlinear
     a, b, c = 49.4, 1.46, 520.6                          # same coefficients as F0_Main_Mat_Nonlinear
-    z = np.clip(b * (B ** 2), 0.0, 700.0)   # same overflow guard
+    z = np.clip(b * (B ** 2), 0.0, 700.0)   # overflow guard
     expterm = np.exp(z)                                  # exp(b |B|^2)
 
     # dmu/dB analytic form (chain through mu = 1/(a*exp(b*B^2)+c))

@@ -97,7 +97,7 @@ def F4_Main_Solve_VecPot(fem, inputs, nu_e_all):
     # Add the coil-current contribution f of Eq. (2).
     Tdof = np.asarray(fem["Tdof"], dtype=int).reshape(-1) - 1   # node indices (0-based)
     Tval = np.asarray(fem["Tval"], dtype=float).reshape(-1)     # per-node current load
-    np.add.at(T, Tdof, Tval)                         # scatter-add (handles repeated nodes)
+    np.add.at(T, Tdof, Tval)                                    # scatter-add (handles repeated nodes)
 
     # =====================================================================
     # RIGHT-HAND SIDE: PERMANENT-MAGNET SOURCE

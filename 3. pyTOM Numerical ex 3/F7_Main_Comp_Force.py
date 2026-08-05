@@ -177,7 +177,7 @@ def F7_Main_Comp_Force(fem):
 
     # Shifted midpoints used for robust air-side field lookup.
     eps_shift   = 1e-3
-    shifted_mid = mid + eps_shift * normal   # note: +normal points inward after flip
+    shifted_mid = mid + eps_shift * normal      # note: +normal points inward after flip
 
     # Nearest element to each shifted midpoint provides nu, Bx, and By.
     from scipy.spatial.distance import cdist

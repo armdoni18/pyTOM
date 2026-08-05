@@ -79,7 +79,7 @@ def F8_Main_Comp_Sens(fem, opt, J):
 
     IX     = np.asarray(fem["IX"], dtype=int)
     X      = np.asarray(fem["X"],  dtype=float)
-    A      = np.asarray(fem["A"],  dtype=float).reshape(-1)    # converged A_z
+    A      = np.asarray(fem["A"],  dtype=float).reshape(-1)
     Bx_all = np.asarray(fem["Bx"], dtype=float).reshape(-1)
     By_all = np.asarray(fem["By"], dtype=float).reshape(-1)
     Bmag   = np.asarray(fem["B"],  dtype=float).reshape(-1)
