@@ -45,7 +45,7 @@ def F3_Pre_Opt_Init(inputs, fem):
         beta schedule, filter radius, and MMA tuning constant.
     fem : dict
         Finite-element data built by ``F2_Pre_FEM_Init``.
-8
+
     Returns
     -------
     opt : dict

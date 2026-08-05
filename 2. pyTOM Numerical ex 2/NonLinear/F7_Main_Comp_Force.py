@@ -165,9 +165,9 @@ def F7_Main_Comp_Force(fem):
     # Edge normal = 90-degree rotation of the edge vector, then normalization.
     normal_raw = np.column_stack([ seg[:, 1], -seg[:, 0]])
     norm_mag   = np.linalg.norm(normal_raw, axis=1, keepdims=True) + 1e-30
-    normal     = normal_raw / norm_mag       # unit normals (Nedge, 2)
+    normal     = normal_raw / norm_mag          # unit normals (Nedge, 2)
 
-    mid = 0.5 * (p1 + p2)                     # edge midpoints (Nedge, 2)
+    mid = 0.5 * (p1 + p2)                       # edge midpoints (Nedge, 2)
 
     # Orient every normal outward, away from the plunger centroid.
     to_pl     = plunger_center[None, :] - mid    # midpoint -> plunger vector
@@ -177,7 +177,7 @@ def F7_Main_Comp_Force(fem):
 
     # Shifted midpoints used for robust air-side field lookup.
     eps_shift   = 1e-3
-    shifted_mid = mid + eps_shift * normal       # note: +normal points inward after flip
+    shifted_mid = mid + eps_shift * normal      # note: +normal points inward after flip
 
     # Nearest element to each shifted midpoint provides nu, Bx, and By.
     from scipy.spatial.distance import cdist
