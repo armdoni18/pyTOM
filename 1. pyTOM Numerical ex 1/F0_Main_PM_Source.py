@@ -119,7 +119,7 @@ def F0_Main_PM_Source(fem, inputs):
         x3 = X[n3-1,0]; y3 = X[n3-1,1]
 
         area2 = (x2-x1)*(y3-y1) - (y2-y1)*(x3-x1)
-        orient = np.where(np.concatenate([area2, area2, area2]) > 0, 1.0, -1.0)  # one orientation sign per edge
+        orient = np.where(np.concatenate([area2, area2, area2]) > 0, 1.0, -1.0)  # one per edge
 
         # Edge tangent and outward normal.
         tx = np.where(valid, vx / (l + eps), 0.0)

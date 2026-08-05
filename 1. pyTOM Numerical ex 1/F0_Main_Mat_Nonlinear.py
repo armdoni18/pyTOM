@@ -69,6 +69,6 @@ def F0_Main_Mat_Nonlinear(B):
     # Brauer model permeability, mu = 1/(a*exp(b*B^2) + c) (inverse of Eq. (3))
     mu_raw = 1.0 / (a * expterm + c)          # mu = 1/nu, nu = a exp(b|B|^2)+c
 
-    # Safety bound: permeability should not be below vacuum permeability.
+    # Safety bound: permeability must not fall below vacuum value
     mu = np.maximum(mu_raw, mu0)              # enforce mu >= mu0
     return mu

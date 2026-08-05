@@ -54,20 +54,15 @@ def F0_Main_Mat_Derivative(B):
 
     # Same coefficients and overflow guard as in F0_Main_Mat_Nonlinear
     a, b, c = 49.4, 1.46, 520.6                         # same coefficients as F0_Main_Mat_Nonlinear
-    # The exponent is clipped at 350 (not 700) because expterm is
-    # squared in the denominator below; exp(350)^2 ~ 1e304 stays
-    # finite in double precision, whereas exp(700)^2 overflows. The
-    # clamp mu >= mu0 is active far below this bound (b|B|^2 ~ 9.7),
-    # so the returned derivative is unaffected for all physical B.
-    z = np.clip(b * (B ** 2), 0.0, 350.0)  # overflow guard (see note)
+    z = np.clip(b * (B ** 2), 0.0, 350.0)  # overflow guard
     expterm = np.exp(z)                                 # exp(b |B|^2)
 
-    # dmu/dB, analytic derivative of mu = 1/(a*exp(b*B^2)+c))
+    # dmu/dB analytic form (chain through mu = 1/(a*exp(b*B^2)+c))
     denom   = (a * expterm + c) ** 2                    # (a exp(b|B|^2)+c)^2
     dmu_raw = -(2.0 * a * b * B * expterm) / denom      # analytic dmu/d|B|
 
     # Suppress the derivative wherever the safety bound was active
-    # If mu was clamped to mu0, the Jacobian must remain consistent.
+    # (mu was clamped to mu0), so the Jacobian remains consistent.
     mu_raw = 1.0 / (a * expterm + c)                    # recompute mu to test the clamp
     dmu = np.where(mu_raw > mu0, dmu_raw, 0.0)       # zero derivative where mu was clamped
     return dmu
