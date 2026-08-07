@@ -32,10 +32,10 @@ of the modules it needs, so it can be run in isolation. The folders correspond t
 the four numerical examples of Section 5 of the paper (see Fig. 9):
 
 ```
-1. Numerical ex 1/               IPM motor — electromagnetic field validation
-2. Numerical ex 2 - Linear/      Actuator TO, linear material
-2. Numerical ex 2 - Nonlinear/   Actuator TO, nonlinear (saturable) material
-3. Numerical ex 3/               Actuator TO, multi-position analysis
+1. pyTOM Numerical ex 1/               IPM motor — electromagnetic field validation
+2. pyTOM Numerical ex 2/Linear/     Actuator TO, linear material
+2. pyTOM Numerical ex 2/NonLinear/  Actuator TO, nonlinear (saturable) material
+3. pyTOM Numerical ex 3/              Actuator TO, multi-position analysis
 ```
 
 The single-purpose modules are named by workflow stage:
