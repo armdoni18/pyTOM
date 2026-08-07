@@ -28,8 +28,8 @@ pip install -r requirements.txt
 ## Repository structure
 
 Each numerical example lives in a self-contained folder that carries its own copy
-of the modules it needs, so it can be run in isolation. The folders correspond to
-the four numerical examples of Section 5 of the paper (see Fig. 9):
+of the modules it needs, so it can be run in isolation. The four example folders
+correspond to the numerical examples of Section 5 of the paper (see Fig. 9):
 
 ```
 1. pyTOM Numerical ex 1/              IPM motor — electromagnetic field validation
@@ -67,11 +67,21 @@ linear case of Example 2 omits the nonlinear ones (`F6`, `F0_Main_Mat_*`,
 
 ## How to run
 
-Run an example from inside its own folder so that the modules and the `.msh`
-file are found:
+Run an example from inside its own folder, so that the modules and the `.msh`
+file are found. The folder names contain spaces, so keep the quotes:
 
 ```bash
-cd "2. Numerical ex 2 - Nonlinear"
+cd "1. pyTOM Numerical ex 1"
+python Main_code_Ex1.py
+```
+
+```bash
+cd "2. pyTOM Numerical ex 2/Linear"
+python Main_code_Ex2_Linear.py
+```
+
+```bash
+cd "2. pyTOM Numerical ex 2/NonLinear"
 python Main_code_Ex2_Nonlinear.py
 ```
 
@@ -79,11 +89,11 @@ For Example 3, the single driver sweeps several plunger-position counts in one
 run and writes a force-profile comparison:
 
 ```bash
-cd "3. Numerical ex 3"
+cd "3. pyTOM Numerical ex 3"
 python Main_code_Mulpos.py
 ```
 
-The list of cases is set at the top of `Main_code_Mulpos.py`:
+The list of cases is set near the top of `Main_code_Mulpos.py`:
 
 ```python
 NPOS_LIST = [1, 11, 21]   # numbers of plunger positions (counts, not indices)
@@ -127,20 +137,27 @@ finite-element solve, the force evaluation, and the adjoint sensitivity analysis
 ## Third-party code
 
 `mma.py` is the publicly available Python port (by A. Deetman) of the original
-MATLAB MMA code by K. Svanberg. It is included unmodified and retains its
-original copyright and GNU General Public License. See
-<https://github.com/arjendeetman/GCMMA-MMA-Python>.
+MATLAB MMA code by K. Svanberg. Its code is included without functional
+modification and retains the original copyright notice and GNU General Public
+License; a short explanatory header identifying it as a third-party module has
+been prepended. See <https://github.com/arjendeetman/GCMMA-MMA-Python>.
 
-Because this GPL-licensed component is distributed together with the framework,
-the repository as a whole is released under the GNU General Public License v3.0;
-see `LICENSE`.
+## License
+
+Because the GPL-licensed `mma.py` is distributed together with the framework, the
+repository as a whole is released under the GNU General Public License v3.0. The
+full licence text is in `LICENSE`; the copyright statement and the third-party
+attribution are in `NOTICE`.
 
 ## Archiving
 
-An archived snapshot of this repository is deposited on Zenodo and is citable via
-a permanent DOI; see the Data Availability statement of the accompanying paper.
+The exact version accompanying the paper is permanently archived in the
+[Software Heritage](https://www.softwareheritage.org/) archive. The
+SoftWare Hash IDentifier (SWHID) is given in the Data Availability statement of
+the paper, and can also be obtained from the "Permalinks" tab when browsing this
+repository in the archive.
 
 ## Citing pyTOM
 
 If you use this code, please cite the accompanying paper (see the top of this
-file).
+file). Machine-readable metadata is provided in `CITATION.cff`.
