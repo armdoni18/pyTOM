@@ -32,9 +32,9 @@ of the modules it needs, so it can be run in isolation. The folders correspond t
 the four numerical examples of Section 5 of the paper (see Fig. 9):
 
 ```
-1. pyTOM Numerical ex 1/               IPM motor — electromagnetic field validation
-2. pyTOM Numerical ex 2/Linear/     Actuator TO, linear material
-2. pyTOM Numerical ex 2/NonLinear/  Actuator TO, nonlinear (saturable) material
+1. pyTOM Numerical ex 1/              IPM motor — electromagnetic field validation
+2. pyTOM Numerical ex 2/Linear/       Actuator TO, linear material
+2. pyTOM Numerical ex 2/NonLinear/    Actuator TO, nonlinear (saturable) material
 3. pyTOM Numerical ex 3/              Actuator TO, multi-position analysis
 ```
 
