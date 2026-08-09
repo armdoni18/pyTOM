@@ -59,7 +59,7 @@ For the Brauer reluctivity of Eq. (3), nu(B) = a exp(b B^2) + c,
 the integral (E2) evaluates in closed form, as stated in the text
 following Eq. (8) of the manuscript:
 
-    w_iron(B) = a/(2b) (exp(b B^2) - 1) + c B^2 / 2.               (E4)
+    w_iron(B) = a/(2b) exp(b B^2) + c B^2 / 2.               (E4)
 
 Consistently with the permeability bound mu >= mu_0 enforced in
 ``F0_Main_Mat_Nonlinear`` (i.e. nu <= nu_max = 1/mu_0), the density
@@ -121,7 +121,7 @@ _A_BR, _B_BR, _C_BR = 49.4, 1.46, 520.6       # fitted Brauer coefficients
 
 # Clamping field B_c: a exp(b B_c^2) + c = nu_max  ->  linear branch above.
 _BC2 = np.log((_NU_MAX - _C_BR) / _A_BR) / _B_BR   # B_c^2
-_WC  = (_A_BR / (2.0 * _B_BR)) * (np.exp(_B_BR * _BC2) - 1.0) \
+_WC  = (_A_BR / (2.0 * _B_BR)) * np.exp(_B_BR * _BC2) \
        + 0.5 * _C_BR * _BC2                        # w_iron(B_c), see (E4)
 
 
@@ -174,7 +174,7 @@ def _brauer_energy_density(B):
     B2 = B ** 2
     # Saturating (Brauer) branch, evaluated at min(B, B_c).
     B2c = np.minimum(B2, _BC2)
-    w = (_A_BR / (2.0 * _B_BR)) * (np.exp(_B_BR * B2c) - 1.0) + 0.5 * _C_BR * B2c
+    w = (_A_BR / (2.0 * _B_BR)) * np.exp(_B_BR * B2c) + 0.5 * _C_BR * B2c
     # Linear vacuum branch above the clamping field.
     above = B2 > _BC2
     if np.any(above):
