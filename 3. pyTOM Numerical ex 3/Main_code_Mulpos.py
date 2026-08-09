@@ -24,7 +24,7 @@ and the damped update of Eq. (6) with alpha. The resulting position-wise
 forces and sensitivities are computed by ``F8_Main_Comp_Sens`` and averaged
 according to Eqs. (18) and (25) before each MMA design update. Each run
 writes to its own ``Results/Npos_<n>/`` folder, and the comparative
-force-profile plot ``Comparison_Force_Profile.png`` (Fig. 9) is produced
+force-profile plot ``Comparison_Force_Profile.png`` (Fig. 8) is produced
 at the end by ``plot_comparison``.
 
 The implementation extends ``Main_code_Ex2_Nonlinear.py``
@@ -546,10 +546,10 @@ def run_single_npos(Npos, inputs_base, modelname, out_dir):
     }
 
 
-# ===================== COMPARISON PLOT (Fig. 9) =====================
+# ===================== COMPARISON PLOT (Fig. 8) =====================
 
 def plot_comparison(all_results, out_dir):
-    """Overlay the force profiles of every N_pos run (Fig. 9)."""
+    """Overlay the force profiles of every N_pos run (Fig. 8)."""
     os.makedirs(out_dir, exist_ok=True)
     fig, ax = plt.subplots(figsize=(7, 5))
     fallback_idx = 0
@@ -621,7 +621,7 @@ if __name__ == "__main__":
         )
         all_results.append(result)
 
-    # Comparison plot for all runs (Fig. 9)
+    # Comparison plot for all runs (Fig. 8)
     plot_comparison(all_results, out_dir=RESULTS_DIR)
 
     total_elapsed = time.time() - total_start
